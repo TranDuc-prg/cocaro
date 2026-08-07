@@ -2,25 +2,29 @@ import streamlit as st
 
 st.set_page_config(page_title="Cờ Caro AI", page_icon="❌⭕", layout="centered")
 
-# CSS tinh chỉnh để thu hẹp khoảng cách và giữ bàn cờ sát nhau gọn gàng
+# CSS tinh chỉnh gom bàn cờ sát khít và căn giữa
 st.markdown(
     """
     <style>
-    /* Ép các khối cột nằm ngang, khoảng cách rất gần nhau (gap: 3px) và căn giữa */
-    div[data-testid="stHorizontalBlock"] {
+    /* Gom cụm các hàng trong bàn cờ lại, căn giữa */
+    div[data-testid="stVerticalBlock"] > div[data-testid="stHorizontalBlock"] {
+        display: inline-flex !important;
+        gap: 4px !important;
+        justify-content: center !important;
+        margin-bottom: 4px !important;
+    }
+    /* Gom toàn bộ bàn cờ vào giữa trang */
+    .element-container:has(div[data-testid="stHorizontalBlock"]) {
         display: flex !important;
-        flex-direction: row !important;
-        flex-wrap: nowrap !important;
-        gap: 3px !important;
         justify-content: center !important;
     }
-    /* Thu hẹp kích thước cột cố định */
+    /* Cố định kích thước mỗi ô cờ nhỏ gọn, sát nhau */
     div[data-testid="column"] {
         width: 50px !important;
         flex: 0 0 50px !important;
         min-width: unset !important;
     }
-    /* Tùy chỉnh nút bấm vuông vắn, sát khít */
+    /* Tùy chỉnh nút bấm vuông vắn */
     div.stButton > button {
         width: 50px !important;
         height: 50px !important;
@@ -163,7 +167,7 @@ st.write(
     }**"
 )
 
-# Hiển thị bàn cờ dạng lưới sát nhau
+# Hiển thị bàn cờ dạng lưới gom sát nhau
 for r in range(size):
   cols = st.columns(size)
   for c in range(size):
