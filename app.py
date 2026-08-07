@@ -11,51 +11,49 @@ if "board" not in st.session_state:
 
 current_size = st.session_state.size
 
-# CSS Grid động theo kích thước bàn cờ (3x3 hoặc 4x4)
-st.markdown(
-    f"""
-    <style>
-    div[data-testid="stVerticalBlock"] > div:has(div[data-testid="stHorizontalBlock"]) {{
-        display: flex;
-        justify-content: center;
-    }}
-    
-    div[data-testid="stHorizontalBlock"] {{
-        display: grid !important;
-        grid-template-columns: repeat({current_size}, 55px) !important;
-        gap: 0px !important;
-        width: max-content !important;
-    }}
-    
-    div[data-testid="column"] {{
-        width: 55px !important;
-        flex: unset !important;
-        min-width: unset !important;
-        padding: 0 !important;
-    }}
+# CSS Grid động theo kích thước bàn cờ (sử dụng dấu ngoặc nhọn kép {{ }} cho CSS)
+css_code = f"""
+<style>
+div[data-testid="stVerticalBlock"] > div:has(div[data-testid="stHorizontalBlock"]) {{
+    display: flex;
+    justify-content: center;
+}}
 
-    div.stButton > button {{
-        width: 55px !important;
-        height: 55px !important;
-        font-size: 24px;
-        font-weight: bold;
-        border-radius: 0px !important;
-        border: 1px solid #1f77b4 !important;
-        margin: 0 !important;
-        background-color: #ffffff;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }}
-    
-    div.stButton > button:hover {{
-        border-color: #ff4b4b !important;
-        background-color: #f0f2f6;
-    }
-    </style>
-""",
-    unsafe_allow_html=True,
-)
+div[data-testid="stHorizontalBlock"] {{
+    display: grid !important;
+    grid-template-columns: repeat({current_size}, 55px) !important;
+    gap: 0px !important;
+    width: max-content !important;
+}}
+
+div[data-testid="column"] {{
+    width: 55px !important;
+    flex: unset !important;
+    min-width: unset !important;
+    padding: 0 !important;
+}}
+
+div.stButton > button {{
+    width: 55px !important;
+    height: 55px !important;
+    font-size: 24px;
+    font-weight: bold;
+    border-radius: 0px !important;
+    border: 1px solid #1f77b4 !important;
+    margin: 0 !important;
+    background-color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}}
+
+div.stButton > button:hover {{
+    border-color: #ff4b4b !important;
+    background-color: #f0f2f6;
+}}
+</style>
+"""
+st.markdown(css_code, unsafe_allow_html=True)
 
 st.title("🎮 Cờ Caro AI (Minimax & Alpha-Beta)")
 
