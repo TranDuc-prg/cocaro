@@ -2,31 +2,31 @@ import streamlit as st
 
 st.set_page_config(page_title="Cờ Caro AI", page_icon="❌⭕", layout="centered")
 
-# CSS tối ưu thu hẹp khoảng cách các cột để bàn cờ gọn gàng trên điện thoại
+# CSS tinh chỉnh để thu hẹp khoảng cách và giữ bàn cờ sát nhau gọn gàng
 st.markdown(
     """
     <style>
-    /* Ép các khối cột hiển thị ngang sát nhau */
+    /* Ép các khối cột nằm ngang, khoảng cách rất gần nhau (gap: 3px) và căn giữa */
     div[data-testid="stHorizontalBlock"] {
         display: flex !important;
         flex-direction: row !important;
         flex-wrap: nowrap !important;
-        gap: 5px !important;
+        gap: 3px !important;
         justify-content: center !important;
     }
-    /* Thu hẹp kích thước cột và căn giữa */
+    /* Thu hẹp kích thước cột cố định */
     div[data-testid="column"] {
-        width: 55px !important;
-        flex: 0 0 55px !important;
+        width: 50px !important;
+        flex: 0 0 50px !important;
         min-width: unset !important;
     }
-    /* Tùy chỉnh nút bấm vuông vắn, dễ bấm */
+    /* Tùy chỉnh nút bấm vuông vắn, sát khít */
     div.stButton > button {
-        width: 55px !important;
-        height: 55px !important;
-        font-size: 24px;
+        width: 50px !important;
+        height: 50px !important;
+        font-size: 22px;
         font-weight: bold;
-        border-radius: 6px;
+        border-radius: 4px;
         padding: 0px;
         display: flex;
         align-items: center;
@@ -48,16 +48,13 @@ if "board" not in st.session_state:
 
 
 def check_winner(b, size):
-  # Hàng ngang và dọc
   for i in range(size):
     if all(b[i][j] == b[i][0] and b[i][0] != " " for j in range(size)):
       return b[i][0]
     if all(b[j][i] == b[0][i] and b[0][i] != " " for j in range(size)):
       return b[0][i]
-  # Chéo chính
   if all(b[i][i] == b[0][0] and b[0][0] != " " for i in range(size)):
     return b[0][0]
-  # Chéo phụ
   if all(
       b[i][size - 1 - i] == b[0][size - 1] and b[0][size - 1] != " "
       for i in range(size)
@@ -166,7 +163,7 @@ st.write(
     }**"
 )
 
-# Hiển thị bàn cờ dạng lưới thu gọn
+# Hiển thị bàn cờ dạng lưới sát nhau
 for r in range(size):
   cols = st.columns(size)
   for c in range(size):
