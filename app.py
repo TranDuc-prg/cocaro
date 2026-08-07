@@ -2,39 +2,46 @@ import streamlit as st
 
 st.set_page_config(page_title="Cờ Caro AI", page_icon="❌⭕", layout="centered")
 
-# CSS tinh chỉnh gom bàn cờ sát khít và căn giữa
+# CSS ép các nút sát khít không khoảng trống, tạo khung bàn cờ liền mạch
 st.markdown(
     """
     <style>
-    /* Gom cụm các hàng trong bàn cờ lại, căn giữa */
+    /* Xóa khoảng cách giữa các cột và hàng */
     div[data-testid="stVerticalBlock"] > div[data-testid="stHorizontalBlock"] {
         display: inline-flex !important;
-        gap: 4px !important;
+        gap: 0px !important;
         justify-content: center !important;
-        margin-bottom: 4px !important;
+        margin: 0 !important;
+        padding: 0 !important;
     }
-    /* Gom toàn bộ bàn cờ vào giữa trang */
     .element-container:has(div[data-testid="stHorizontalBlock"]) {
         display: flex !important;
         justify-content: center !important;
+        margin: 0 !important;
     }
-    /* Cố định kích thước mỗi ô cờ nhỏ gọn, sát nhau */
     div[data-testid="column"] {
-        width: 50px !important;
-        flex: 0 0 50px !important;
+        width: 60px !important;
+        flex: 0 0 60px !important;
         min-width: unset !important;
+        padding: 0 !important;
     }
-    /* Tùy chỉnh nút bấm vuông vắn */
+    /* Ép các nút bấm sát khít, chung đường viền */
     div.stButton > button {
-        width: 50px !important;
-        height: 50px !important;
-        font-size: 22px;
+        width: 60px !important;
+        height: 60px !important;
+        font-size: 26px;
         font-weight: bold;
-        border-radius: 4px;
-        padding: 0px;
+        border-radius: 0px !important;
+        border: 1px solid #1f77b4 !important;
+        margin: 0 !important;
+        background-color: #ffffff;
         display: flex;
         align-items: center;
         justify-content: center;
+    }
+    div.stButton > button:hover {
+        border-color: #ff4b4b !important;
+        background-color: #f0f2f6;
     }
     </style>
 """,
@@ -167,12 +174,12 @@ st.write(
     }**"
 )
 
-# Hiển thị bàn cờ dạng lưới gom sát nhau
+# Hiển thị bàn cờ dạng lưới dính liền sát khít
 for r in range(size):
   cols = st.columns(size)
   for c in range(size):
     val = st.session_state.board[r][c]
-    label = val if val != " " else "·"
+    label = val if val != " " else ""
     if cols[c].button(label, key=f"btn_{r}_{c}"):
       if (
           val == " "
