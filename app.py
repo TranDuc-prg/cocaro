@@ -2,29 +2,35 @@ import streamlit as st
 
 st.set_page_config(page_title="Cờ Caro AI", page_icon="❌⭕", layout="centered")
 
-# CSS tùy chỉnh để ép các cột bàn cờ luôn nằm ngang trên mọi thiết bị
+# CSS tối ưu thu hẹp khoảng cách các cột để bàn cờ gọn gàng trên điện thoại
 st.markdown(
     """
     <style>
-    /* Ép tất cả các khối chứa cột trong Streamlit hiển thị thành hàng ngang */
+    /* Ép các khối cột hiển thị ngang sát nhau */
     div[data-testid="stHorizontalBlock"] {
         display: flex !important;
         flex-direction: row !important;
         flex-wrap: nowrap !important;
+        gap: 5px !important;
+        justify-content: center !important;
     }
-    /* Ép từng ô cột chia đều không gian trên một hàng */
+    /* Thu hẹp kích thước cột và căn giữa */
     div[data-testid="column"] {
-        width: auto !important;
-        flex: 1 1 0% !important;
+        width: 55px !important;
+        flex: 0 0 55px !important;
         min-width: unset !important;
     }
-    /* Tùy chỉnh nút bấm to, đẹp và dễ bấm */
+    /* Tùy chỉnh nút bấm vuông vắn, dễ bấm */
     div.stButton > button {
-        width: 100%;
-        height: 55px;
+        width: 55px !important;
+        height: 55px !important;
         font-size: 24px;
         font-weight: bold;
-        border-radius: 8px;
+        border-radius: 6px;
+        padding: 0px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
     </style>
 """,
@@ -142,13 +148,13 @@ def ai_move():
 # Chọn kích thước bàn cờ
 col1, col2 = st.columns(2)
 with col1:
-  if st.button("Chơi bàn cờ 3x3"):
+  if st.button("Chơi 3x3"):
     st.session_state.size = 3
     st.session_state.board = [[" " for _ in range(3)] for _ in range(3)]
     st.session_state.turn = "X"
     st.session_state.winner = None
 with col2:
-  if st.button("Chơi bàn cờ 4x4"):
+  if st.button("Chơi 4x4"):
     st.session_state.size = 4
     st.session_state.board = [[" " for _ in range(4)] for _ in range(4)]
     st.session_state.turn = "X"
@@ -160,7 +166,7 @@ st.write(
     }**"
 )
 
-# Hiển thị bàn cờ dạng lưới chuẩn
+# Hiển thị bàn cờ dạng lưới thu gọn
 for r in range(size):
   cols = st.columns(size)
   for c in range(size):
@@ -187,7 +193,7 @@ if st.session_state.winner:
   if st.session_state.winner == "X":
     st.success("🎉 Chúc mừng! Bạn đã chiến thắng!")
   elif st.session_state.winner == "O":
-    st.error("🤖 AI đã chiến thắng! Chúc bạn may mắn lần sau.")
+    st.error("🤖 AI đã chiến thắng!")
   else:
     st.warning("🤝 Trận đấu hòa!")
 
