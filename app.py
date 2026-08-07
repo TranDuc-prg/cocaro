@@ -2,17 +2,23 @@ import streamlit as st
 
 st.set_page_config(page_title="Cờ Caro AI", page_icon="❌⭕", layout="centered")
 
-# CSS tùy chỉnh để ép bàn cờ luôn hiển thị dạng lưới vuông chuẩn trên cả máy tính lẫn điện thoại
+# CSS tùy chỉnh để ép các cột bàn cờ luôn nằm ngang trên mọi thiết bị
 st.markdown(
     """
     <style>
-    /* Ép các cột chứa nút bấm dàn đều theo lưới */
-    [data-testid="column"] {
-        width: 60px !important;
-        flex: 1 1 auto !important;
-        min-width: 50px !important;
+    /* Ép tất cả các khối chứa cột trong Streamlit hiển thị thành hàng ngang */
+    div[data-testid="stHorizontalBlock"] {
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
     }
-    /* Tùy chỉnh nút bấm to, dễ bấm trên điện thoại */
+    /* Ép từng ô cột chia đều không gian trên một hàng */
+    div[data-testid="column"] {
+        width: auto !important;
+        flex: 1 1 0% !important;
+        min-width: unset !important;
+    }
+    /* Tùy chỉnh nút bấm to, đẹp và dễ bấm */
     div.stButton > button {
         width: 100%;
         height: 55px;
@@ -154,7 +160,7 @@ st.write(
     }**"
 )
 
-# Hiển thị bàn cờ dạng các nút bấm
+# Hiển thị bàn cờ dạng lưới chuẩn
 for r in range(size):
   cols = st.columns(size)
   for c in range(size):
