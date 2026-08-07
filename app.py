@@ -2,36 +2,42 @@ import streamlit as st
 
 st.set_page_config(page_title="Cờ Caro AI", page_icon="❌⭕", layout="centered")
 
-# CSS sử dụng Grid để ép các ô dính sát khít tuyệt đối không khoảng trống
+# Khởi tạo trạng thái game trước để lấy kích thước `size`
+if "board" not in st.session_state:
+  st.session_state.size = 3
+  st.session_state.board = [[" " for _ in range(3)] for _ in range(3)]
+  st.session_state.turn = "X"
+  st.session_state.winner = None
+
+current_size = st.session_state.size
+
+# CSS Grid động theo kích thước bàn cờ (3x3 hoặc 4x4)
 st.markdown(
-    """
+    f"""
     <style>
-    /* Ẩn cấu trúc cột mặc định của Streamlit trong bàn cờ và chuyển thành CSS Grid */
-    div[data-testid="stVerticalBlock"] > div:has(div[data-testid="stHorizontalBlock"]) {
+    div[data-testid="stVerticalBlock"] > div:has(div[data-testid="stHorizontalBlock"]) {{
         display: flex;
         justify-content: center;
-    }
+    }}
     
-    /* Gom các cột thành một khối lưới duy nhất sát khít */
-    div[data-testid="stHorizontalBlock"] {
+    div[data-testid="stHorizontalBlock"] {{
         display: grid !important;
-        grid-template-columns: repeat(3, 60px) !important;
+        grid-template-columns: repeat({current_size}, 55px) !important;
         gap: 0px !important;
         width: max-content !important;
-    }
+    }}
     
-    div[data-testid="column"] {
-        width: 60px !important;
+    div[data-testid="column"] {{
+        width: 55px !important;
         flex: unset !important;
         min-width: unset !important;
         padding: 0 !important;
-    }
+    }}
 
-    /* Tùy chỉnh nút bấm vuông vắn, dính liền viền nhau */
-    div.stButton > button {
-        width: 60px !important;
-        height: 60px !important;
-        font-size: 26px;
+    div.stButton > button {{
+        width: 55px !important;
+        height: 55px !important;
+        font-size: 24px;
         font-weight: bold;
         border-radius: 0px !important;
         border: 1px solid #1f77b4 !important;
@@ -40,9 +46,9 @@ st.markdown(
         display: flex;
         align-items: center;
         justify-content: center;
-    }
+    }}
     
-    div.stButton > button:hover {
+    div.stButton > button:hover {{
         border-color: #ff4b4b !important;
         background-color: #f0f2f6;
     }
@@ -52,13 +58,6 @@ st.markdown(
 )
 
 st.title("🎮 Cờ Caro AI (Minimax & Alpha-Beta)")
-
-# Khởi tạo trạng thái game trong Streamlit
-if "board" not in st.session_state:
-  st.session_state.size = 3
-  st.session_state.board = [[" " for _ in range(3)] for _ in range(3)]
-  st.session_state.turn = "X"  # X: Người, O: AI
-  st.session_state.winner = None
 
 
 def check_winner(b, size):
@@ -128,7 +127,7 @@ def ai_move():
   size = st.session_state.size
   best_score = -float("inf")
   best_move = None
-  max_depth = 4 if size == 3 else 2
+  max_depth = 3 if size == 4 else 4
 
   for r in range(size):
     for c in range(size):
@@ -164,12 +163,14 @@ with col1:
     st.session_state.board = [[" " for _ in range(3)] for _ in range(3)]
     st.session_state.turn = "X"
     st.session_state.winner = None
+    st.rerun()
 with col2:
   if st.button("Chơi 4x4"):
     st.session_state.size = 4
     st.session_state.board = [[" " for _ in range(4)] for _ in range(4)]
     st.session_state.turn = "X"
     st.session_state.winner = None
+    st.rerun()
 
 size = st.session_state.size
 st.write(
@@ -177,7 +178,7 @@ st.write(
     }**"
 )
 
-# Hiển thị bàn cờ dạng lưới dính liền sát khít
+# Hiển thị bàn cờ
 for r in range(size):
   cols = st.columns(size)
   for c in range(size):
