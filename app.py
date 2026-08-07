@@ -11,7 +11,7 @@ if "board" not in st.session_state:
 
 current_size = st.session_state.size
 
-# CSS Grid động theo kích thước bàn cờ (sử dụng dấu ngoặc nhọn kép {{ }} cho CSS)
+# CSS Grid động theo kích thước bàn cờ
 css_code = f"""
 <style>
 div[data-testid="stVerticalBlock"] > div:has(div[data-testid="stHorizontalBlock"]) {{
@@ -59,18 +59,44 @@ st.title("🎮 Cờ Caro AI (Minimax & Alpha-Beta)")
 
 
 def check_winner(b, size):
-  for i in range(size):
-    if all(b[i][j] == b[i][0] and b[i][0] != " " for j in range(size)):
-      return b[i][0]
-    if all(b[j][i] == b[0][i] and b[0][i] != " " for j in range(size)):
-      return b[0][i]
-  if all(b[i][i] == b[0][0] and b[0][0] != " " for i in range(size)):
-    return b[0][0]
-  if all(
-      b[i][size - 1 - i] == b[0][size - 1] and b[0][size - 1] != " "
-      for i in range(size)
-  ):
-    return b[0][size - 1]
+  # Kiểm tra hàng ngang
+  for r in range(size):
+    for c in range(size - 2):
+      # Nếu size = 4 cần 4 ô, size = 3 cần 3 ô liên tiếp
+      win_len = 3 if size == 3 else 4
+      if c + win_len <= size:
+        symbol = b[r][c]
+        if symbol != " ":
+          if all(b[r][c + k] == symbol for k in range(win_len)):
+            return symbol
+
+  # Kiểm tra hàng dọc
+  for c in range(size):
+    for r in range(size - 2):
+      win_len = 3 if size == 3 else 4
+      if r + win_len <= size:
+        symbol = b[r][c]
+        if symbol != " ":
+          if all(b[r + k][c] == symbol for k in range(win_len)):
+            return symbol
+
+  # Kiểm tra đường chéo chính (\)
+  win_len = 3 if size == 3 else 4
+  for r in range(size - win_len + 1):
+    for c in range(size - win_len + 1):
+      symbol = b[r][c]
+      if symbol != " ":
+        if all(b[r + k][c + k] == symbol for k in range(win_len)):
+          return symbol
+
+  # Kiểm tra đường chéo phụ (/)
+  for r in range(size - win_len + 1):
+    for c in range(win_len - 1, size):
+      symbol = b[r][c]
+      if symbol != " ":
+        if all(b[r + k][c - k] == symbol for k in range(win_len)):
+          return symbol
+
   return None
 
 
@@ -125,6 +151,7 @@ def ai_move():
   size = st.session_state.size
   best_score = -float("inf")
   best_move = None
+  # Giới hạn độ sâu minimax để tránh đơ máy với bảng 4x4
   max_depth = 3 if size == 4 else 4
 
   for r in range(size):
@@ -150,6 +177,8 @@ def ai_move():
     w = check_winner(st.session_state.board, size)
     if w:
       st.session_state.winner = w
+    elif is_full(st.session_state.board, size):
+      st.session_state.winner = "Draw"
     st.session_state.turn = "X"
 
 
