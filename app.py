@@ -2,30 +2,32 @@ import streamlit as st
 
 st.set_page_config(page_title="Cờ Caro AI", page_icon="❌⭕", layout="centered")
 
-# CSS ép các nút sát khít không khoảng trống, tạo khung bàn cờ liền mạch
+# CSS sử dụng Grid để ép các ô dính sát khít tuyệt đối không khoảng trống
 st.markdown(
     """
     <style>
-    /* Xóa khoảng cách giữa các cột và hàng */
-    div[data-testid="stVerticalBlock"] > div[data-testid="stHorizontalBlock"] {
-        display: inline-flex !important;
+    /* Ẩn cấu trúc cột mặc định của Streamlit trong bàn cờ và chuyển thành CSS Grid */
+    div[data-testid="stVerticalBlock"] > div:has(div[data-testid="stHorizontalBlock"]) {
+        display: flex;
+        justify-content: center;
+    }
+    
+    /* Gom các cột thành một khối lưới duy nhất sát khít */
+    div[data-testid="stHorizontalBlock"] {
+        display: grid !important;
+        grid-template-columns: repeat(3, 60px) !important;
         gap: 0px !important;
-        justify-content: center !important;
-        margin: 0 !important;
-        padding: 0 !important;
+        width: max-content !important;
     }
-    .element-container:has(div[data-testid="stHorizontalBlock"]) {
-        display: flex !important;
-        justify-content: center !important;
-        margin: 0 !important;
-    }
+    
     div[data-testid="column"] {
         width: 60px !important;
-        flex: 0 0 60px !important;
+        flex: unset !important;
         min-width: unset !important;
         padding: 0 !important;
     }
-    /* Ép các nút bấm sát khít, chung đường viền */
+
+    /* Tùy chỉnh nút bấm vuông vắn, dính liền viền nhau */
     div.stButton > button {
         width: 60px !important;
         height: 60px !important;
@@ -39,6 +41,7 @@ st.markdown(
         align-items: center;
         justify-content: center;
     }
+    
     div.stButton > button:hover {
         border-color: #ff4b4b !important;
         background-color: #f0f2f6;
