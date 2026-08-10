@@ -1,10 +1,10 @@
 import streamlit as st
 
 st.set_page_config(
-    page_title="Cờ Caro Trực Tuyến", page_icon="🎮", layout="wide"
+    page_title="Cờ Caro Trực Tuyến", page_icon="🪵", layout="wide"
 )
 
-# Khởi tạo cơ sở dữ liệu giả lập trong session_state nếu chưa có
+# Khởi tạo cơ sở dữ liệu giả lập trong session_state
 if "users" not in st.session_state:
   st.session_state.users = {
       "ppppp": 1900,
@@ -35,11 +35,11 @@ if "board" not in st.session_state:
   ]
   st.session_state.turn = "X"
   st.session_state.winner = None
-  st.session_state.game_mode = "menu"  # menu, 3x3, 10x10, 12x12
+  st.session_state.game_mode = "menu"
 
 current_size = st.session_state.size
 
-# Giao diện CSS hiện đại (Dark/Light mượt mà, căn chỉnh bố cục chuẩn game web)
+# Giao diện CSS đồng bộ bàn cờ gỗ liền mạch và các thẻ card tinh tế
 css_code = f"""
 <style>
 .block-container {{
@@ -48,7 +48,7 @@ css_code = f"""
     max-width: 1200px !important;
 }}
 
-/* Khung bàn cờ gỗ tinh tế */
+/* Khung bàn cờ gỗ liền mạch chuẩn xác */
 div[data-testid="stVerticalBlock"] > div:has(div[data-testid="stHorizontalBlock"]) {{
     display: flex;
     flex-direction: column;
@@ -97,73 +97,77 @@ div.stButton > button:hover {{
     background-color: #faebd7;
 }}
 
-.card {{
+.custom-card {{
     background-color: #ffffff;
     padding: 20px;
     border-radius: 12px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.08);
     margin-bottom: 20px;
+    border: 1px solid #eaeaea;
 }}
 </style>
 """
 st.markdown(css_code, unsafe_allow_html=True)
 
-# Kiểm tra nếu chưa đăng nhập tên người chơi
+# Màn hình đăng nhập tên người chơi
 if not st.session_state.current_user:
   st.markdown(
-      "<h2 style='text-align: center;'>🎮 Chào mừng đến với Caro Trực Tuyến"
-      "</h2>",
+      "<h2 style='text-align: center; color: #5c4033;'>🪵 Cờ Caro Gỗ Trực"
+      " Tuyến 🪵</h2>",
       unsafe_allow_html=True,
   )
   _, col_login, _ = st.columns([1, 2, 1])
   with col_login:
     st.markdown(
-        "<div class='card'><h3>Bạn là ai?</h3><p>Vui lòng nhập tên người dùng"
-        " của bạn để lưu điểm và lịch sử đấu:</p></div>",
+        "<div class='custom-card'><h3>Bạn là ai?</h3><p>Vui lòng nhập tên"
+        " người dùng để lưu điểm Elo và lịch sử đấu:</p></div>",
         unsafe_allow_html=True,
     )
     username_input = st.text_input("Tên người dùng", placeholder="Nhập tên...")
-    if st.button("Tiếp tục", use_container_width=True):
+    if st.button("Vào trò chơi", use_container_width=True):
       if username_input.strip():
         name = username_input.strip()
         st.session_state.current_user = name
         if name not in st.session_state.users:
-          st.session_state.users[name] = 1000  # Điểm mặc định cho người chơi mới
+          st.session_state.users[name] = 1000
         st.rerun()
       else:
         st.warning("Vui lòng nhập tên hợp lệ!")
   st.stop()
 
-# --- Giao diện chính sau khi đăng nhập ---
+# Thông tin header người chơi hiện tại
 user = st.session_state.current_user
 user_score = st.session_state.users[user]
 
-# Header hiển thị thông tin người chơi
-col_h1, col_h2, col_h3 = st.columns([2, 6, 2])
+col_h1, col_h2, col_h3 = st.columns([3, 6, 2])
 with col_h1:
-  st.markdown(f"👤 **{user}** (Elo: `{user_score}`)")
+  st.markdown(
+      f"👤 Người chơi: **{user}** | Elo: `⭐ {user_score}`",
+      unsafe_allow_html=True,
+  )
 with col_h3:
   if st.button("Đổi người chơi"):
     st.session_state.current_user = ""
     st.rerun()
 
 st.markdown(
-    "<h1 style='text-align: center; color: #2c3e50;'>Caro Trực Tuyến</h1>",
+    "<h1 style='text-align: center; color: #5c4033; margin-top: 10px;'>🪵 Cờ"
+    " Caro Gỗ 🪵</h1>",
     unsafe_allow_html=True,
 )
 st.markdown(
-    "<p style='text-align: center; color: gray;'>Người đầu tiên nối được năm quân"
-    " cờ sẽ chiến thắng</p>",
+    "<p style='text-align: center; color: #666;'>Người đầu tiên nối đủ quân"
+    " cờ theo quy định sẽ giành chiến thắng</p>",
     unsafe_allow_html=True,
 )
 
-# Menu chính chọn chế độ chơi (Giao diện giống Papergames)
+# Menu chọn chế độ chơi và hiển thị bảng xếp hạng / lịch sử
 if st.session_state.game_mode == "menu":
-  col_m1, col_m2 = st.columns([2, 1])
+  col_m1, col_m2 = st.columns([1.5, 1])
 
   with col_m1:
     st.markdown("### 🕹️ Chọn chế độ chơi")
-    if st.button("🤖 Chơi với Robot (3x3)", use_container_width=True):
+    if st.button("🪵 Chơi với Robot - Bàn Cờ 3x3 (Nối 3)", use_container_width=True):
       st.session_state.size = 3
       st.session_state.board = [[" " for _ in range(3)] for _ in range(3)]
       st.session_state.turn = "X"
@@ -171,7 +175,9 @@ if st.session_state.game_mode == "menu":
       st.session_state.game_mode = "3x3"
       st.rerun()
 
-    if st.button("🪵 Chơi với Robot - Bàn Cờ Gỗ 10x10", use_container_width=True):
+    if st.button(
+        "🪵 Chơi với Robot - Bàn Cờ Gỗ 10x10 (Nối 5)", use_container_width=True
+    ):
       st.session_state.size = 10
       st.session_state.board = [
           [" " for _ in range(10)] for _ in range(10)
@@ -181,7 +187,9 @@ if st.session_state.game_mode == "menu":
       st.session_state.game_mode = "10x10"
       st.rerun()
 
-    if st.button("🪵 Chơi với Robot - Bàn Cờ Gỗ 12x12", use_container_width=True):
+    if st.button(
+        "🪵 Chơi với Robot - Bàn Cờ Gỗ 12x12 (Nối 5)", use_container_width=True
+    ):
       st.session_state.size = 12
       st.session_state.board = [
           [" " for _ in range(12)] for _ in range(12)
@@ -192,8 +200,7 @@ if st.session_state.game_mode == "menu":
       st.rerun()
 
   with col_m2:
-    # Bảng xếp hạng Top người dùng
-    st.markdown("### 🏆 Bảng Xếp Hạng")
+    st.markdown("### 🏆 Bảng Xếp Hạng Elo")
     sorted_users = sorted(
         st.session_state.users.items(), key=lambda x: x[1], reverse=True
     )
@@ -203,13 +210,20 @@ if st.session_state.game_mode == "menu":
 
     st.markdown("### 📜 Lịch sử đấu gần đây")
     for match in st.session_state.match_history[-3:]:
-      st.caption(
-          f"- {match['player']} vs {match['opponent']}: **{match['result']}**"
-          f" ({match['score']})"
+      color_res = (
+          "green"
+          if match["result"] == "Thắng"
+          else ("red" if match["result"] == "Thua" else "orange")
+      )
+      st.markdown(
+          f"- {match['player']} vs {match['opponent']}:"
+          f" <span style='color:{color_res}; font-weight:bold;'>{match['result']}</span>"
+          f" (`{match['score']}`)",
+          unsafe_allow_html=True,
       )
 
 else:
-  # Giao diện trong trận đấu
+  # Giao diện khi đang trong trận đấu
   size = st.session_state.size
 
 
@@ -289,16 +303,17 @@ else:
 
   col_b1, col_b2, col_b3 = st.columns([1, 2, 1])
   with col_b2:
-    if st.button("⬅️ Quay lại Menu chính"):
+    if st.button("⬅️ Quay lại Menu chính", use_container_width=True):
       st.session_state.game_mode = "menu"
       st.rerun()
 
   st.markdown(
-      f"<p style='text-align: center;'>Trạng thái: <b>{'Lượt của bạn (X)' if st.session_state.turn == 'X' else 'AI đang đi...'}</b></p>",
+      f"<p style='text-align: center; font-size: 16px; margin: 10px 0;'>Trạng"
+      f" thái: <b>{'Lượt của bạn (X)' if st.session_state.turn == 'X' else 'AI đang đi (O)...'}</b></p>",
       unsafe_allow_html=True,
   )
 
-  # Hiển thị bàn cờ
+  # Hiển thị bàn cờ liền mạch
   for r in range(size):
     cols = st.columns(size)
     for c in range(size):
@@ -334,11 +349,12 @@ else:
             ai_move()
           st.rerun()
 
+  # Thông báo kết quả trò chơi
   if st.session_state.winner:
     if st.session_state.winner == "X":
-      st.success("🎉 Chúc mừng! Bạn đã chiến thắng (+15 điểm Elo)!")
+      st.success("🎉 Chúc mừng! Bạn đã chiến thắng (+15 Elo)!")
     elif st.session_state.winner == "O":
-      st.error("🤖 AI đã chiến thắng! (-10 điểm Elo)")
+      st.error("🤖 AI đã chiến thắng! (-10 Elo)")
     else:
       st.warning("🤝 Trận đấu hòa!")
 
