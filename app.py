@@ -6,7 +6,7 @@ import os
 from streamlit_autorefresh import st_autorefresh
 
 st.set_page_config(
-    page_title="Cờ Caro Gỗ Trực Tuyến", page_icon="🪵", layout="centered"
+    page_title="Cờ Caro Trực Tuyến", page_icon="🪵", layout="centered"
 )
 
 # ----------------- LƯU PHÒNG BẰNG FILE JSON -----------------
@@ -219,12 +219,11 @@ if "board" not in st.session_state:
     st.session_state.is_room_creator = False
     st.session_state.my_symbol = "X"
 
-# ----------------- CSS RESPONSIVE -----------------
 current_size = st.session_state.size
 css_code = f"""
 <style>
 .block-container {{
-    padding-top: 1rem;
+    
     padding-bottom: 1.5rem;
     padding-left: 0.5rem;
     padding-right: 0.5rem;
