@@ -240,7 +240,6 @@ current_size = st.session_state.size
 # CSS hoàn chỉnh cho bàn cờ
 css_code = f"""
 <style>
-    /* Reset và base */
     .block-container {{
         padding: 0.2rem !important;
         max-width: 100% !important;
@@ -277,16 +276,6 @@ css_code = f"""
     }}
     
     /* Mỗi ô cờ */
-    .board-grid div[data-testid="column"] {{
-        padding: 0 !important;
-        margin: 0 !important;
-        background-color: #fdf5e6 !important;
-        aspect-ratio: 1 / 1 !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-    }}
-    
     .board-grid .stButton {{
         width: 100% !important;
         height: 100% !important;
@@ -423,9 +412,6 @@ css_code = f"""
         .chess-board-wrapper {{
             padding: 1px;
             border-width: 2px;
-        }}
-        .board-grid {{
-            gap: 1px !important;
         }}
     }}
 </style>
@@ -708,21 +694,17 @@ with tab1:
         unsafe_allow_html=True,
     )
 
-    # ----------------- BÀN CỜ - DẠNG LƯỚI HOÀN CHỈNH -----------------
+    # ----------------- BÀN CỜ - CHỈ 1 BÀN CỜ DUY NHẤT -----------------
     if board is not None:
-        # Tạo wrapper và grid
         st.markdown('<div class="chess-board-wrapper"><div class="board-grid">', unsafe_allow_html=True)
         
-        # Duyệt từng ô
         for r in range(size):
-            # Tạo columns cho hàng
             cols = st.columns(size)
             for c in range(size):
                 val = board[r][c]
                 label = val if val != " " else ""
                 is_winning_cell = (r, c) in winning_line
                 
-                # Kiểm tra disabled
                 disabled = False
                 if st.session_state.game_mode == "online_pvp":
                     if not players or winner is not None:
@@ -746,8 +728,9 @@ with tab1:
                         )
                     else:
                         # Ô thường - sử dụng button
+                        btn_label = label if label else " "
                         if st.button(
-                            label if label else "",
+                            btn_label,
                             key=f"cell_{r}_{c}_{st.session_state.game_mode}_{st.session_state.turn}",
                             disabled=disabled,
                             use_container_width=True
