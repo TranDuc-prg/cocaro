@@ -237,9 +237,10 @@ if "board" not in st.session_state:
 
 current_size = st.session_state.size
 
-# CSS - Chỉ 1 bàn cờ duy nhất
+# CSS hoàn chỉnh cho bàn cờ trên mobile
 css_code = f"""
 <style>
+    /* Reset */
     .block-container {{
         padding: 0.2rem !important;
         max-width: 100% !important;
@@ -252,85 +253,67 @@ css_code = f"""
         font-family: 'Helvetica Neue', sans-serif;
     }}
     
+    /* Bàn cờ wrapper */
     .chess-board-wrapper {{
         width: 100%;
         max-width: 500px;
         margin: 5px auto;
-        background-color: #d2b48c;
-        border: 3px solid #8b4513;
-        padding: 3px;
+        background-color: #ffffff;
+        border: 2px solid #8b4513;
+        padding: 4px;
         border-radius: 8px;
         box-shadow: 0 2px 12px rgba(139, 69, 19, 0.2);
-        overflow: hidden;
     }}
     
+    /* Grid bàn cờ - Quan trọng nhất */
     .board-grid {{
-        display: grid !important;
-        grid-template-columns: repeat({current_size}, 1fr) !important;
-        gap: 1px !important;
-        background-color: #c8ad7f !important;
-        width: 100% !important;
-        aspect-ratio: 1 / 1 !important;
+        display: grid;
+        grid-template-columns: repeat({current_size}, 1fr);
+        gap: 2px;
+        background-color: #ffffff;
+        width: 100%;
+        aspect-ratio: 1 / 1;
     }}
     
-    .board-grid .stButton {{
-        width: 100% !important;
-        height: 100% !important;
-        padding: 0 !important;
-        margin: 0 !important;
-    }}
-    
-    .board-grid .stButton > button {{
-        width: 100% !important;
-        height: 100% !important;
-        min-height: 20px !important;
-        padding: 0 !important;
-        margin: 0 !important;
-        border-radius: 0 !important;
-        border: none !important;
-        background-color: #fdf5e6 !important;
-        font-size: clamp(12px, 2.5vw, 22px) !important;
-        font-weight: 800 !important;
-        color: #2c2c2c !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        touch-action: manipulation;
+    /* Mỗi ô cờ */
+    .cell {{
+        background-color: #f0e6d3;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: clamp(12px, 2.5vw, 22px);
+        font-weight: 800;
         cursor: pointer;
-        transition: all 0.15s ease;
-        box-shadow: none !important;
+        user-select: none;
+        transition: all 0.1s ease;
+        aspect-ratio: 1 / 1;
+        min-height: 20px;
+        border: 1px solid #d4c4a8;
+        color: #2c2c2c;
     }}
     
-    .board-grid .stButton > button:hover:not(:disabled) {{
-        background-color: #faebd7 !important;
-        transform: scale(1.05);
+    .cell:hover:not(.disabled) {{
+        background-color: #e8dcc8;
+        transform: scale(1.02);
         z-index: 2;
     }}
     
-    .board-grid .stButton > button:active:not(:disabled) {{
+    .cell:active:not(.disabled) {{
         transform: scale(0.92);
-        background-color: #e8d5b8 !important;
     }}
     
-    .board-grid .stButton > button:disabled {{
-        opacity: 1;
+    .cell.disabled {{
         cursor: default;
-        background-color: #fdf5e6 !important;
+        opacity: 1;
     }}
     
-    .win-cell {{
+    /* Ô thắng - Màu xanh */
+    .cell.win {{
         background-color: #4ade80 !important;
         color: #064e3b !important;
         border: 2px solid #16a34a !important;
         box-shadow: 0 0 15px rgba(74, 222, 128, 0.4) !important;
-        animation: winPulse 1.2s ease-in-out infinite !important;
-        font-weight: 800 !important;
-        font-size: clamp(12px, 2.5vw, 22px) !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        width: 100% !important;
-        height: 100% !important;
+        animation: winPulse 1.2s ease-in-out infinite;
     }}
     
     @keyframes winPulse {{
@@ -339,6 +322,7 @@ css_code = f"""
         100% {{ transform: scale(1); background-color: #4ade80; }}
     }}
     
+    /* Status và card */
     .status-card {{
         background-color: #fffaf0;
         border-left: 4px solid #8b4513;
@@ -348,7 +332,6 @@ css_code = f"""
         text-align: center;
         font-size: clamp(11px, 1.8vw, 15px);
         color: #5c4033;
-        word-break: break-word;
     }}
     
     .custom-card {{
@@ -360,6 +343,7 @@ css_code = f"""
         border: 1px solid #eaeaea;
     }}
     
+    /* Responsive mobile */
     @media (max-width: 600px) {{
         .block-container {{
             padding: 0.1rem !important;
@@ -370,12 +354,9 @@ css_code = f"""
             border-radius: 6px;
             max-width: 100%;
         }}
-        .board-grid .stButton > button {{
+        .cell {{
             font-size: clamp(8px, 1.8vw, 14px) !important;
             min-height: 16px !important;
-        }}
-        .win-cell {{
-            font-size: clamp(8px, 1.8vw, 14px) !important;
         }}
         .status-card {{
             font-size: 10px;
@@ -384,6 +365,9 @@ css_code = f"""
         h1 {{
             font-size: 16px !important;
             margin: 2px 0 !important;
+        }}
+        h2 {{
+            font-size: 14px !important;
         }}
         .stButton button {{
             font-size: 11px !important;
@@ -397,16 +381,16 @@ css_code = f"""
     }}
     
     @media (max-width: 400px) {{
-        .board-grid .stButton > button {{
+        .cell {{
             font-size: clamp(6px, 1.5vw, 10px) !important;
             min-height: 12px !important;
-        }}
-        .win-cell {{
-            font-size: clamp(6px, 1.5vw, 10px) !important;
         }}
         .chess-board-wrapper {{
             padding: 1px;
             border-width: 2px;
+        }}
+        .board-grid {{
+            gap: 1px;
         }}
     }}
 </style>
@@ -689,8 +673,9 @@ with tab1:
         unsafe_allow_html=True,
     )
 
-    # ----------------- BÀN CỜ - CHỈ 1 BÀN CỜ -----------------
+    # ----------------- BÀN CỜ - SỬ DỤNG BUTTONS -----------------
     if board is not None:
+        # Sử dụng columns để tạo grid tương tác
         st.markdown('<div class="chess-board-wrapper"><div class="board-grid">', unsafe_allow_html=True)
         
         for r in range(size):
@@ -717,15 +702,17 @@ with tab1:
                 with cols[c]:
                     if is_winning_cell:
                         st.markdown(
-                            f'<div class="win-cell">{label if label else " "}</div>',
+                            f'<div class="cell win" style="display:flex;align-items:center;justify-content:center;background-color:#4ade80;border:2px solid #16a34a;font-weight:800;font-size:clamp(12px,2.5vw,22px);color:#064e3b;aspect-ratio:1/1;animation:winPulse 1.2s ease-in-out infinite;">{label}</div>',
                             unsafe_allow_html=True
                         )
                     else:
+                        # Sử dụng button nhưng ẩn text để hiển thị ô
                         if st.button(
                             label if label else " ",
-                            key=f"cell_{r}_{c}",
+                            key=f"cell_{r}_{c}_{st.session_state.game_mode}",
                             disabled=disabled,
-                            use_container_width=True
+                            use_container_width=True,
+                            type="secondary"
                         ):
                             if st.session_state.game_mode == "vs_ai":
                                 st.session_state.board[r][c] = "X"
@@ -769,6 +756,7 @@ with tab1:
                                         st.session_state.turn = "X"
                                 st.rerun()
                             else:
+                                # Online PvP
                                 success, msg = apply_move(st.session_state.room_id, r, c, user)
                                 if success:
                                     st.rerun()
