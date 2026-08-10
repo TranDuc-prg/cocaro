@@ -1,28 +1,16 @@
+import random
 import streamlit as st
 
 st.set_page_config(
     page_title="Cờ Caro Gỗ Trực Tuyến", page_icon="🪵", layout="centered"
 )
 
-# Khởi tạo session state lưu trữ thông tin người dùng và lịch sử
+# Khởi tạo session state (Không còn tài khoản mặc định sẵn)
 if "users" not in st.session_state:
-  st.session_state.users = {
-      "ppppp": 1900,
-      "12345": 1705,
-      "PlayerOne": 1650,
-      "Hoàng Thời": 1630,
-  }
+  st.session_state.users = {}
 
 if "match_history" not in st.session_state:
-  st.session_state.match_history = [
-      {
-          "player": "ppppp",
-          "opponent": "AI Robot",
-          "result": "Thắng",
-          "score": "+15",
-      },
-      {"player": "12345", "opponent": "AI Robot", "result": "Thua", "score": "-10"},
-  ]
+  st.session_state.match_history = []
 
 if "current_user" not in st.session_state:
   st.session_state.current_user = ""
@@ -34,11 +22,13 @@ if "board" not in st.session_state:
   ]
   st.session_state.turn = "X"
   st.session_state.winner = None
+  st.session_state.winning_line = []
   st.session_state.game_mode = "vs_ai"
+  st.session_state.room_id = "phong_mac_dinh"
 
 current_size = st.session_state.size
 
-# Giao diện CSS hiện đại, ấm áp phong cách gỗ
+# Giao diện CSS hiện đại, ấm áp phong cách gỗ, có hiệu ứng đường kẻ thắng nhấp nháy
 css_code = f"""
 <style>
 .block-container {{
@@ -83,6 +73,7 @@ h1, h2, h3 {{
     padding: 0 !important;
 }}
 
+/* Nút ô cờ thông thường */
 .chess-board-wrapper div.stButton > button {{
     width: 40px !important;
     height: 40px !important;
@@ -104,6 +95,19 @@ h1, h2, h3 {{
     background-color: #faebd7;
     transform: scale(1.02);
     z-index: 2;
+}}
+
+/* Hiệu ứng các ô đạt chuỗi thắng (đường kẻ ngang/dọc/chéo) */
+.win-cell button {{
+    background-color: #ffe066 !important;
+    color: #d9480f !important;
+    border: 2px solid #f59f00 !important;
+    animation: pulse 1s infinite alternate;
+}}
+
+@keyframes pulse {{
+    0% {{ transform: scale(1); }}
+    100% {{ transform: scale(1.08); background-color: #ffec99 !important; }}
 }}
 
 .custom-card {{
@@ -142,17 +146,18 @@ if not st.session_state.current_user:
     st.markdown(
         "<div"
         " class='custom-card'><h3>👤 Đăng nhập người"
-        " chơi</h3><p>Vui lòng nhập tên của bạn để lưu lại điểm Elo và lịch sử"
-        " đấu:</p></div>",
+        " chơi</h3><p>Vui lòng nhập tên của bạn để bắt đầu trò chơi:</p></div>",
         unsafe_allow_html=True,
     )
-    username_input = st.text_input("Tên hiển thị", placeholder="Nhập tên...")
+    username_input = st.text_input(
+        "Tên hiển thị", placeholder="Nhập tên của bạn..."
+    )
     if st.button("Vào Trò Chơi", use_container_width=True, type="primary"):
       if username_input.strip():
         name = username_input.strip()
         st.session_state.current_user = name
         if name not in st.session_state.users:
-          st.session_state.users[name] = 1000  # Khởi tạo 1000 điểm cho người mới
+          st.session_state.users[name] = 1000  # Khởi tạo điểm Elo
         st.rerun()
       else:
         st.warning("Vui lòng nhập tên hợp lệ!")
@@ -160,7 +165,7 @@ if not st.session_state.current_user:
 
 # ----------------- HEADER THÔNG TIN NGƯỜI CHƠI -----------------
 user = st.session_state.current_user
-user_score = st.session_state.users[user]
+user_score = st.session_state.users.get(user, 1000)
 
 col_h1, col_h2 = st.columns([4, 1])
 with col_h1:
@@ -179,6 +184,12 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+# ----------------- HỖ TRỢ CHƠI TRÊN 2 MÁY KHÁC NHAU QUA PHÒNG (URL QUERY PARAMS) -----------------
+query_params = st.query_params
+room_from_url = query_params.get("room", None)
+if room_from_url:
+  st.session_state.room_id = room_from_url
+
 # ----------------- MENU LỰA CHỌN CHẾ ĐỘ & BẢNG XẾP HẠNG -----------------
 tab1, tab2 = st.tabs(["🎮 Vào Trận Đấu", "🏆 Bảng Xếp Hạng & Lịch Sử"])
 
@@ -186,12 +197,19 @@ with tab2:
   col_tb1, col_tb2 = st.columns(2)
   with col_tb1:
     st.markdown("### 🏆 Top Điểm Elo Cao Nhất")
-    sorted_users = sorted(
-        st.session_state.users.items(), key=lambda x: x[1], reverse=True
-    )
-    for idx, (u_name, u_pts) in enumerate(sorted_users[:5], 1):
-      medal = "🥇" if idx == 1 else ("🥈" if idx == 2 else ("🥉" if idx == 3 else f"{idx}."))
-      st.markdown(f"{medal} **{u_name}** — `{u_pts} pts`")
+    if not st.session_state.users:
+      st.info("Chưa có người chơi nào trên bảng xếp hạng.")
+    else:
+      sorted_users = sorted(
+          st.session_state.users.items(), key=lambda x: x[1], reverse=True
+      )
+      for idx, (u_name, u_pts) in enumerate(sorted_users[:5], 1):
+        medal = (
+            "🥇"
+            if idx == 1
+            else ("🥈" if idx == 2 else ("🥉" if idx == 3 else f"{idx}."))
+        )
+        st.markdown(f"{medal} **{u_name}** — `{u_pts} pts`")
 
   with col_tb2:
     st.markdown("### 📜 Lịch sử đấu gần đây")
@@ -229,24 +247,50 @@ with tab1:
       ]
       st.session_state.turn = "X"
       st.session_state.winner = None
+      st.session_state.winning_line = []
       st.rerun()
 
   with col_m2:
     if st.button(
-        "👥 Đấu với Bạn (2 Người)",
+        "🌐 Đấu Online (2 Máy khác nhau)",
         use_container_width=True,
         type="primary"
-        if st.session_state.game_mode == "vs_player"
+        if st.session_state.game_mode == "online_pvp"
         else "secondary",
     ):
-      st.session_state.game_mode = "vs_player"
+      st.session_state.game_mode = "online_pvp"
       st.session_state.board = [
           [" " for _ in range(st.session_state.size)]
           for _ in range(st.session_state.size)
       ]
       st.session_state.turn = "X"
       st.session_state.winner = None
+      st.session_state.winning_line = []
       st.rerun()
+
+  if st.session_state.game_mode == "online_pvp":
+    st.markdown("---")
+    st.markdown("### 🌐 Kết nối 2 máy khác nhau")
+    st.info(
+        "💡 **Cách chơi 2 máy:** Đặt tên phòng tùy ý hoặc dùng mặc định, sau đó"
+        " bấm **Tham gia phòng** và copy đường dẫn trình duyệt gửi cho bạn bè"
+        " mở trên máy của họ."
+    )
+
+    col_r1, col_r2 = st.columns([2, 1])
+    with col_r1:
+      entered_room = st.text_input(
+          "Mã phòng chơi", value=st.session_state.room_id
+      )
+    with col_r2:
+      st.markdown("<br>", unsafe_allow_html=True)
+      if st.button("Tham gia phòng"):
+        st.session_state.room_id = entered_room
+        st.query_params["room"] = entered_room
+        st.success(f"Đã vào phòng: {entered_room}!")
+        st.rerun()
+
+    st.markdown(f"🔗 **Mã phòng hiện tại:** `{st.session_state.room_id}`")
 
   col_s1, col_s2, col_s3 = st.columns(3)
   with col_s1:
@@ -255,6 +299,7 @@ with tab1:
       st.session_state.board = [[" " for _ in range(3)] for _ in range(3)]
       st.session_state.turn = "X"
       st.session_state.winner = None
+      st.session_state.winning_line = []
       st.rerun()
   with col_s2:
     if st.button("📐 Bàn cờ 10x10 (Nối 5)", use_container_width=True):
@@ -264,6 +309,7 @@ with tab1:
       ]
       st.session_state.turn = "X"
       st.session_state.winner = None
+      st.session_state.winning_line = []
       st.rerun()
   with col_s3:
     if st.button("📐 Bàn cờ 12x12 (Nối 5)", use_container_width=True):
@@ -273,35 +319,44 @@ with tab1:
       ]
       st.session_state.turn = "X"
       st.session_state.winner = None
+      st.session_state.winning_line = []
       st.rerun()
 
   size = st.session_state.size
 
 
-  # ----------------- HÀM LOGIC GAME -----------------
+  # ----------------- HÀM LOGIC GAME & TÌM ĐƯỜNG KẺ THẮNG -----------------
   def check_winner(b, sz):
     win_len = 3 if sz == 3 else 5
+    # Ngang
     for r in range(sz):
       for c in range(sz - win_len + 1):
         symbol = b[r][c]
         if symbol != " " and all(b[r][c + k] == symbol for k in range(win_len)):
-          return symbol
+          return symbol, [(r, c + k) for k in range(win_len)]
+    # Dọc
     for c in range(sz):
       for r in range(sz - win_len + 1):
         symbol = b[r][c]
         if symbol != " " and all(b[r + k][c] == symbol for k in range(win_len)):
-          return symbol
+          return symbol, [(r + k, c) for k in range(win_len)]
+    # Chéo chính
     for r in range(sz - win_len + 1):
       for c in range(sz - win_len + 1):
         symbol = b[r][c]
-        if symbol != " " and all(b[r + k][c + k] == symbol for k in range(win_len)):
-          return symbol
+        if symbol != " " and all(
+            b[r + k][c + k] == symbol for k in range(win_len)
+        ):
+          return symbol, [(r + k, c + k) for k in range(win_len)]
+    # Chéo phụ
     for r in range(sz - win_len + 1):
       for c in range(win_len - 1, sz):
         symbol = b[r][c]
-        if symbol != " " and all(b[r + k][c - k] == symbol for k in range(win_len)):
-          return symbol
-    return None
+        if symbol != " " and all(
+            b[r + k][c - k] == symbol for k in range(win_len)
+        ):
+          return symbol, [(r + k, c - k) for k in range(win_len)]
+    return None, []
 
 
   def is_full(b, sz):
@@ -329,9 +384,10 @@ with tab1:
       best_move = (size // 2, size // 2)
 
     st.session_state.board[best_move[0]][best_move[1]] = "O"
-    w = check_winner(st.session_state.board, size)
+    w, line = check_winner(st.session_state.board, size)
     if w:
       st.session_state.winner = w
+      st.session_state.winning_line = line
       if w == "O" and st.session_state.game_mode == "vs_ai":
         st.session_state.users[user] = max(
             100, st.session_state.users[user] - 10
@@ -358,88 +414,91 @@ with tab1:
   mode_text = (
       "Đấu với Máy (AI)"
       if st.session_state.game_mode == "vs_ai"
-      else "Đấu 2 Người (PvP)"
+      else "Đấu Online (2 Máy)"
   )
   if not st.session_state.winner:
     turn_msg = (
-        f"Lượt đi: <b>{'Bạn (X)' if st.session_state.turn == 'X' else 'Máy (O)'}</b>"
-        if st.session_state.game_mode == "vs_ai"
-        else f"Lượt đi: <b>{'Người 1 (X)' if st.session_state.turn == 'X' else 'Người 2 (O)'}</b>"
+        f"Lượt đi: <b>{'Bạn (X)' if st.session_state.turn == 'X' else ('Máy (O)' if st.session_state.game_mode == 'vs_ai' else 'Đối thủ (O)')}</b>"
     )
   else:
     turn_msg = "Trận đấu đã kết thúc!"
 
   st.markdown(
-      f"<div class='status-card'>🎮 Chế độ: <b>{mode_text}</b> | {turn_msg}</div>",
+      f"<div class='status-card'>🎮 Chế độ: <b>{mode_text}</b> (Phòng:"
+      f" <code>{st.session_state.room_id}</code>) | {turn_msg}</div>",
       unsafe_allow_html=True,
   )
 
-  # Hiển thị bàn cờ
+  # Hiển thị bàn cờ với hiệu ứng đường kẻ thắng
   st.markdown('<div class="chess-board-wrapper">', unsafe_allow_html=True)
   for r in range(size):
     cols = st.columns(size)
     for c in range(size):
       val = st.session_state.board[r][c]
       label = val if val != " " else ""
-      if cols[c].button(label, key=f"btn_{r}_{c}"):
-        if val == " " and not st.session_state.winner:
-          current_player = st.session_state.turn
-          st.session_state.board[r][c] = current_player
+      is_winning_cell = (r, c) in st.session_state.winning_line
 
-          w = check_winner(st.session_state.board, size)
-          if w:
-            st.session_state.winner = w
-            if st.session_state.game_mode == "vs_ai":
-              if w == "X":
-                st.session_state.users[user] += 15
+      if is_winning_cell:
+        with cols[c]:
+          st.markdown(
+              f'<div class="win-cell"><button>{label}</button></div>',
+              unsafe_allow_html=True,
+          )
+      else:
+        if cols[c].button(label, key=f"btn_{r}_{c}"):
+          if val == " " and not st.session_state.winner:
+            current_player = st.session_state.turn
+            st.session_state.board[r][c] = current_player
+
+            w, line = check_winner(st.session_state.board, size)
+            if w:
+              st.session_state.winner = w
+              st.session_state.winning_line = line
+              if st.session_state.game_mode == "vs_ai":
+                if w == "X":
+                  st.session_state.users[user] += 15
+                  st.session_state.match_history.append({
+                      "player": user,
+                      "opponent": "AI Robot",
+                      "result": "Thắng",
+                      "score": "+15",
+                  })
+              elif st.session_state.game_mode == "online_pvp":
                 st.session_state.match_history.append({
                     "player": user,
-                    "opponent": "AI Robot",
-                    "result": "Thắng",
+                    "opponent": "Bạn bè",
+                    "result": "Thắng" if w == "X" else "Thua",
                     "score": "+15",
                 })
-          elif is_full(st.session_state.board, size):
-            st.session_state.winner = "Draw"
-            if st.session_state.game_mode == "vs_ai":
-              st.session_state.match_history.append({
-                  "player": user,
-                  "opponent": "AI Robot",
-                  "result": "Hòa",
-                  "score": "0",
-              })
-          else:
-            if st.session_state.game_mode == "vs_ai":
-              st.session_state.turn = "O"
-              ai_move()
+            elif is_full(st.session_state.board, size):
+              st.session_state.winner = "Draw"
             else:
-              st.session_state.turn = "O" if current_player == "X" else "X"
-          st.rerun()
+              if st.session_state.game_mode == "vs_ai":
+                st.session_state.turn = "O"
+                ai_move()
+              else:
+                st.session_state.turn = "O" if current_player == "X" else "X"
+            st.rerun()
   st.markdown("</div>", unsafe_allow_html=True)
 
   # Thông báo kết quả
   if st.session_state.winner:
     if st.session_state.winner == "X":
       st.success(
-          "🎉 Chúc mừng bạn đã chiến thắng!"
-          if st.session_state.game_mode == "vs_ai"
-          else "🎉 Chúc mừng Người chơi 1 (X) chiến thắng!"
+          "🎉 Chúc mừng bạn (X) đã chiến thắng! Đường kẻ chiến thắng đã được"
+          " tô sáng."
       )
     elif st.session_state.winner == "O":
-      st.error(
-          "🤖 AI đã chiến thắng!"
-          if st.session_state.game_mode == "vs_ai"
-          else "🎉 Chúc mừng Người chơi 2 (O) chiến thắng!"
-      )
+      st.error("🤖 Đối thủ / AI (O) đã giành chiến thắng!")
     else:
       st.warning("🤝 Trận đấu hòa!")
 
   # Nút chơi lại
   r_col1, r_col2, r_col3 = st.columns([2, 1, 2])
   with r_col2:
-    if st.button(
-        "🔄 Chơi Ván Mới", use_container_width=True, type="primary"
-    ):
+    if st.button("🔄 Chơi Ván Mới", use_container_width=True, type="primary"):
       st.session_state.board = [[" " for _ in range(size)] for _ in range(size)]
       st.session_state.turn = "X"
       st.session_state.winner = None
+      st.session_state.winning_line = []
       st.rerun()
