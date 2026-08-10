@@ -1,32 +1,40 @@
 import streamlit as st
 
 st.set_page_config(
-    page_title="Cờ Caro AI - Bàn Cờ Lớn", page_icon="❌⭕", layout="wide"
+    page_title="Cờ Caro Gỗ", page_icon="🪵", layout="centered"
 )
 
-# Khởi tạo trạng thái game (Mặc định bàn cờ lớn 10x10)
+# Khởi tạo trạng thái game (Mặc định 10x10)
 if "board" not in st.session_state:
   st.session_state.size = 10
   st.session_state.board = [
       [" " for _ in range(10)] for _ in range(10)
   ]
-  st.session_state.turn = "X"  # X: Người, O: AI
+  st.session_state.turn = "X"
   st.session_state.winner = None
 
 current_size = st.session_state.size
 
-# CSS Grid động tạo khung bàn cờ liền mạch, màu vân gỗ sáng sang trọng
+# CSS Grid chuẩn xác giúp bàn cờ dính liền sát khít thành một khối thống nhất
 css_code = f"""
 <style>
 .block-container {{
-    padding-top: 1rem;
-    padding-bottom: 1rem;
-    max-width: 1000px;
+    padding-top: 1.5rem;
+    padding-bottom: 1.5rem;
+    max-width: 700px;
 }}
 
+/* Gom toàn bộ các hàng của bàn cờ thành một khối lưới duy nhất */
 div[data-testid="stVerticalBlock"] > div:has(div[data-testid="stHorizontalBlock"]) {{
     display: flex;
-    justify-content: center;
+    flex-direction: column;
+    align-items: center;
+    background-color: #d2b48c;
+    border: 4px solid #8b4513;
+    padding: 4px;
+    width: max-content;
+    margin: 0 auto;
+    border-radius: 4px;
 }}
 
 div[data-testid="stHorizontalBlock"] {{
@@ -34,8 +42,7 @@ div[data-testid="stHorizontalBlock"] {{
     grid-template-columns: repeat({current_size}, 42px) !important;
     gap: 0px !important;
     width: max-content !important;
-    background-color: #d2b48c;
-    border: 3px solid #8b4513;
+    margin: 0 !important;
 }}
 
 div[data-testid="column"] {{
@@ -69,12 +76,14 @@ div.stButton > button:hover {{
 st.markdown(css_code, unsafe_allow_html=True)
 
 st.markdown(
-    "<h1 style='text-align: center;'>🪵 Cờ Caro Gỗ (Kẻ Ô Lớn)</h1>",
+    "<h1 style='text-align: center; color: #5c4033;'>🪵 Cờ Caro Gỗ 🪵</h1>",
     unsafe_allow_html=True,
 )
 
 
-def check_winner(b, size, win_len=5):
+def check_winner(b, size):
+  win_len = 3 if size == 3 else 5
+
   # Kiểm tra hàng ngang
   for r in range(size):
     for c in range(size - win_len + 1):
@@ -118,16 +127,13 @@ def is_full(b, size):
   return True
 
 
-# Thuật toán AI đơn giản quét ô trống gần quân cờ cho bàn cờ lớn
 def ai_move():
   size = st.session_state.size
   best_move = None
 
-  # Ưu tiên đánh gần các ô đã có quân
   for r in range(size):
     for c in range(size):
       if st.session_state.board[r][c] == " ":
-        # Kiểm tra xem xung quanh có quân cờ nào không
         has_neighbor = False
         for dr in [-1, 0, 1]:
           for dc in [-1, 0, 1]:
@@ -144,12 +150,11 @@ def ai_move():
     if best_move:
       break
 
-  # Nếu bàn cờ trống thì đánh vào giữa
   if not best_move:
     best_move = (size // 2, size // 2)
 
   st.session_state.board[best_move[0]][best_move[1]] = "O"
-  w = check_winner(st.session_state.board, size, win_len=5)
+  w = check_winner(st.session_state.board, size)
   if w:
     st.session_state.winner = w
   elif is_full(st.session_state.board, size):
@@ -157,32 +162,37 @@ def ai_move():
   st.session_state.turn = "X"
 
 
-# Chọn kích thước bàn cờ
-col_m1, col_m2, col_m3 = st.columns([1, 2, 1])
-with col_m2:
-  b_col1, b_col2 = st.columns(2)
-  with b_col1:
-    if st.button("Bàn Cờ 10x10", use_container_width=True):
-      st.session_state.size = 10
-      st.session_state.board = [[" " for _ in range(10)] for _ in range(10)]
-      st.session_state.turn = "X"
-      st.session_state.winner = None
-      st.rerun()
-  with b_col2:
-    if st.button("Bàn Cờ 12x12", use_container_width=True):
-      st.session_state.size = 12
-      st.session_state.board = [[" " for _ in range(12)] for _ in range(12)]
-      st.session_state.turn = "X"
-      st.session_state.winner = None
-      st.rerun()
+# Chọn kích thước bàn cờ (3x3, 10x10, 12x12)
+col1, col2, col3 = st.columns(3)
+with col1:
+  if st.button("Chơi 3x3", use_container_width=True):
+    st.session_state.size = 3
+    st.session_state.board = [[" " for _ in range(3)] for _ in range(3)]
+    st.session_state.turn = "X"
+    st.session_state.winner = None
+    st.rerun()
+with col2:
+  if st.button("Chơi 10x10", use_container_width=True):
+    st.session_state.size = 10
+    st.session_state.board = [[" " for _ in range(10)] for _ in range(10)]
+    st.session_state.turn = "X"
+    st.session_state.winner = None
+    st.rerun()
+with col3:
+  if st.button("Chơi 12x12", use_container_width=True):
+    st.session_state.size = 12
+    st.session_state.board = [[" " for _ in range(12)] for _ in range(12)]
+    st.session_state.turn = "X"
+    st.session_state.winner = None
+    st.rerun()
 
 size = st.session_state.size
 st.markdown(
-    f"<p style='text-align: center;'>Trạng thái: <b>{'Lượt của bạn (X)' if st.session_state.turn == 'X' else'AI đang đi...'}</b></p>",
+    f"<p style='text-align: center; font-size: 16px;'>Trạng thái: <b>{'Lượt của bạn (X)' if st.session_state.turn == 'X' else 'AI đang đi...'}</b></p>",
     unsafe_allow_html=True,
 )
 
-# Hiển thị bàn cờ lớn dạng lưới gỗ
+# Hiển thị bàn cờ liền mạch
 for r in range(size):
   cols = st.columns(size)
   for c in range(size):
@@ -195,7 +205,7 @@ for r in range(size):
           and not st.session_state.winner
       ):
         st.session_state.board[r][c] = "X"
-        if check_winner(st.session_state.board, size, win_len=5) == "X":
+        if check_winner(st.session_state.board, size) == "X":
           st.session_state.winner = "X"
         elif is_full(st.session_state.board, size):
           st.session_state.winner = "Draw"
@@ -213,10 +223,10 @@ if st.session_state.winner:
   else:
     st.warning("🤝 Trận đấu hòa!")
 
-# Nút chơi lại căn giữa
+# Nút chơi lại
 r_col1, r_col2, r_col3 = st.columns([2, 1, 2])
 with r_col2:
-  if st.button("Chơi lại từ đầu", use_container_width=True):
+  if st.button("Chơi lại", use_container_width=True):
     st.session_state.board = [[" " for _ in range(size)] for _ in range(size)]
     st.session_state.turn = "X"
     st.session_state.winner = None
