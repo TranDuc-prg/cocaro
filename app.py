@@ -4,7 +4,7 @@ st.set_page_config(
     page_title="Cờ Caro Gỗ", page_icon="🪵", layout="centered"
 )
 
-# Khởi tạo trạng thái game (Mặc định 10x10)
+# Khởi tạo trạng thái game mặc định
 if "board" not in st.session_state:
   st.session_state.size = 10
   st.session_state.board = [
@@ -15,47 +15,49 @@ if "board" not in st.session_state:
 
 current_size = st.session_state.size
 
-# CSS Grid chuẩn xác giúp bàn cờ dính liền sát khít thành một khối thống nhất
+# CSS tối ưu riêng biệt, tránh xung đột khung chữ và bàn cờ
 css_code = f"""
 <style>
 .block-container {{
     padding-top: 1.5rem;
     padding-bottom: 1.5rem;
-    max-width: 700px;
+    max-width: 800px;
 }}
 
-/* Gom toàn bộ các hàng của bàn cờ thành một khối lưới duy nhất */
-div[data-testid="stVerticalBlock"] > div:has(div[data-testid="stHorizontalBlock"]) {{
+/* Khung bọc bàn cờ gỗ */
+.chess-board-wrapper {{
     display: flex;
     flex-direction: column;
     align-items: center;
     background-color: #d2b48c;
     border: 4px solid #8b4513;
-    padding: 4px;
+    padding: 6px;
     width: max-content;
     margin: 0 auto;
-    border-radius: 4px;
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
 }}
 
-div[data-testid="stHorizontalBlock"] {{
+/* Ép các hàng nút bàn cờ thành lưới chuẩn */
+.chess-board-wrapper div[data-testid="stHorizontalBlock"] {{
     display: grid !important;
-    grid-template-columns: repeat({current_size}, 42px) !important;
+    grid-template-columns: repeat({current_size}, 40px) !important;
     gap: 0px !important;
     width: max-content !important;
     margin: 0 !important;
 }}
 
-div[data-testid="column"] {{
-    width: 42px !important;
+.chess-board-wrapper div[data-testid="column"] {{
+    width: 40px !important;
     flex: unset !important;
     min-width: unset !important;
     padding: 0 !important;
 }}
 
-div.stButton > button {{
-    width: 42px !important;
-    height: 42px !important;
-    font-size: 20px;
+.chess-board-wrapper div.stButton > button {{
+    width: 40px !important;
+    height: 40px !important;
+    font-size: 18px;
     font-weight: bold;
     border-radius: 0px !important;
     border: 1px solid #c8ad7f !important;
@@ -67,7 +69,7 @@ div.stButton > button {{
     justify-content: center;
 }}
 
-div.stButton > button:hover {{
+.chess-board-wrapper div.stButton > button:hover {{
     border-color: #8b4513 !important;
     background-color: #faebd7;
 }}
@@ -192,7 +194,8 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Hiển thị bàn cờ liền mạch
+# Hiển thị bàn cờ liền mạch nằm trong khối div bọc riêng biệt
+st.markdown('<div class="chess-board-wrapper">', unsafe_allow_html=True)
 for r in range(size):
   cols = st.columns(size)
   for c in range(size):
@@ -213,6 +216,7 @@ for r in range(size):
           st.session_state.turn = "O"
           ai_move()
         st.rerun()
+st.markdown("</div>", unsafe_allow_html=True)
 
 # Thông báo kết quả
 if st.session_state.winner:
