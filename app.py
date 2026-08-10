@@ -624,33 +624,6 @@ css_code = f"""
     font-weight: 900 !important;
 }}
 
-/* MÀU QUÂN X / O */
-.caro-piece-cell {{
-    width: 100%;
-    aspect-ratio: 1 / 1;
-    box-sizing: border-box;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: #f5dfb4;
-    border: 1px solid #9a672f;
-    user-select: none;
-}}
-
-.caro-piece-x {{
-    color: #1565c0 !important;
-    font-size: clamp(16px, {max(3.4, 100/current_size)}vw, 36px);
-    font-weight: 900;
-    text-shadow: 0 1px 1px rgba(0,0,0,.15);
-}}
-
-.caro-piece-o {{
-    color: #d32f2f !important;
-    font-size: clamp(16px, {max(3.4, 100/current_size)}vw, 36px);
-    font-weight: 900;
-    text-shadow: 0 1px 1px rgba(0,0,0,.15);
-}}
-
 /* Ô nằm trên đường thắng */
 .caro-win-cell {{
     width: 100%;
@@ -736,10 +709,7 @@ css_code = f"""
         font-size: {11 if current_size >= 12 else 15}px !important;
     }}
 
-    .caro-piece-x,
-    .caro-piece-o,
-    .caro-win-cell .caro-piece-x,
-    .caro-win-cell .caro-piece-o {{
+    .caro-win-cell span {{
         font-size: {11 if current_size >= 12 else 15}px !important;
     }}
 }}
@@ -756,10 +726,7 @@ css_code = f"""
         font-size: {9 if current_size >= 12 else 13}px !important;
     }}
 
-    .caro-piece-x,
-    .caro-piece-o,
-    .caro-win-cell .caro-piece-x,
-    .caro-win-cell .caro-piece-o {{
+    .caro-win-cell span {{
         font-size: {9 if current_size >= 12 else 13}px !important;
     }}
 }}
@@ -1543,35 +1510,26 @@ if board is not None:
                         disabled = True
 
                 # ----------------------------------------------
-                # Ô ĐÃ CÓ QUÂN: HIỂN THỊ MÀU X / O
+                # Ô THUỘC DÒNG THẮNG
                 # ----------------------------------------------
 
-                if val != " ":
-
-                    piece_class = "caro-piece-x" if val == "X" else "caro-piece-o"
-
-                    if is_winning_cell:
-                        cell_class = "caro-win-cell"
-                    else:
-                        cell_class = "caro-piece-cell"
+                if is_winning_cell:
 
                     with cols[c]:
                         st.markdown(
-                            f'''<div class="{cell_class}">
-                                <span class="{piece_class}">{val}</span>
-                            </div>''',
+                            f"""<div class="caro-win-cell"><span>{label}</span></div>""",
                             unsafe_allow_html=True
                         )
 
                     continue
 
                 # ----------------------------------------------
-                # Ô TRỐNG: BUTTON ĐỂ CHẠM ĐÁNH CỜ
+                # Ô BÌNH THƯỜNG
                 # ----------------------------------------------
 
                 with cols[c]:
                     clicked = st.button(
-                        "",
+                        label,
                         key=(
                             f"caro_cell_"
                             f"{st.session_state.game_mode}_"
