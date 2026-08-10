@@ -6,6 +6,56 @@ st.set_page_config(
     page_title="Cờ Caro Gỗ Trực Tuyến", page_icon="🪵", layout="centered"
 )
 
+# ----------------- CÁC HÀM HỖ TRỢ (định nghĩa trước) -----------------
+def check_winner(b, sz):
+    win_len = 3 if sz == 3 else 5
+    # Ngang
+    for r in range(sz):
+        for c in range(sz - win_len + 1):
+            symbol = b[r][c]
+            if symbol != " " and all(b[r][c+k] == symbol for k in range(win_len)):
+                return symbol, [(r, c+k) for k in range(win_len)]
+    # Dọc
+    for c in range(sz):
+        for r in range(sz - win_len + 1):
+            symbol = b[r][c]
+            if symbol != " " and all(b[r+k][c] == symbol for k in range(win_len)):
+                return symbol, [(r+k, c) for k in range(win_len)]
+    # Chéo chính
+    for r in range(sz - win_len + 1):
+        for c in range(sz - win_len + 1):
+            symbol = b[r][c]
+            if symbol != " " and all(b[r+k][c+k] == symbol for k in range(win_len)):
+                return symbol, [(r+k, c+k) for k in range(win_len)]
+    # Chéo phụ
+    for r in range(sz - win_len + 1):
+        for c in range(win_len - 1, sz):
+            symbol = b[r][c]
+            if symbol != " " and all(b[r+k][c-k] == symbol for k in range(win_len)):
+                return symbol, [(r+k, c-k) for k in range(win_len)]
+    return None, []
+
+def is_full(b, sz):
+    return all(b[r][c] != " " for r in range(sz) for c in range(sz))
+
+def ai_move(size, board):
+    best_move = None
+    for r in range(size):
+        for c in range(size):
+            if board[r][c] == " ":
+                has_neighbor = any(
+                    0 <= r+dr < size and 0 <= c+dc < size and board[r+dr][c+dc] != " "
+                    for dr in [-1,0,1] for dc in [-1,0,1] if not (dr==0 and dc==0)
+                )
+                if has_neighbor or size == 3:
+                    best_move = (r, c)
+                    break
+        if best_move:
+            break
+    if not best_move:
+        best_move = (size//2, size//2)
+    return best_move
+
 # ----------------- BỘ NHỚ CHIA SẺ CHO PHÒNG ONLINE -----------------
 @st.cache_resource(ttl=3600)
 def get_shared_state():
@@ -13,7 +63,117 @@ def get_shared_state():
 
 shared_rooms = get_shared_state()
 
-# Khởi tạo session state
+def init_room(room_id, size):
+    if room_id in shared_rooms:
+        return False
+    shared_rooms[room_id] = {
+        "board": [[" " for _ in range(size)] for _ in range(size)],
+        "size": size,
+        "turn": "X",
+        "winner": None,
+        "winning_line": [],
+        "players": {},
+    }
+    return True
+
+def join_room(room_id, username):
+    if room_id not in shared_rooms:
+        return None
+    room = shared_rooms[room_id]
+    if username in room["players"]:
+        return room["players"][username]
+    if len(room["players"]) >= 2:
+        return None
+    symbol = "X" if len(room["players"]) == 0 else "O"
+    room["players"][username] = symbol
+    return symbol
+
+def leave_room(room_id, username):
+    if room_id in shared_rooms:
+        room = shared_rooms[room_id]
+        if username in room["players"]:
+            del room["players"][username]
+        if not room["players"]:
+            del shared_rooms[room_id]
+
+def apply_move(room_id, row, col, username):
+    if room_id not in shared_rooms:
+        return False, "Phòng không tồn tại."
+    room = shared_rooms[room_id]
+    if username not in room["players"]:
+        return False, "Bạn chưa tham gia phòng."
+    symbol = room["players"][username]
+    if room["winner"] is not None:
+        return False, "Trận đã kết thúc."
+    if room["turn"] != symbol:
+        return False, "Chưa đến lượt bạn."
+    board = room["board"]
+    size = room["size"]
+    if row < 0 or row >= size or col < 0 or col >= size:
+        return False, "Ô không hợp lệ."
+    if board[row][col] != " ":
+        return False, "Ô đã bị chiếm."
+    board[row][col] = symbol
+    winner, win_line = check_winner(board, size)
+    if winner:
+        room["winner"] = winner
+        room["winning_line"] = win_line
+        update_elo_online(room_id, winner)
+    elif is_full(board, size):
+        room["winner"] = "Draw"
+        update_elo_online(room_id, "Draw")
+    else:
+        room["turn"] = "O" if symbol == "X" else "X"
+    return True, "Thành công"
+
+def update_elo_online(room_id, winner):
+    room = shared_rooms.get(room_id)
+    if not room:
+        return
+    players = room["players"]
+    if len(players) != 2:
+        return
+    user_list = list(players.keys())
+    p1, p2 = user_list[0], user_list[1]
+    s1, s2 = players[p1], players[p2]
+    if winner == "X":
+        win_user = p1 if s1 == "X" else p2
+        lose_user = p2 if s1 == "X" else p1
+        st.session_state.users[win_user] = st.session_state.users.get(win_user, 1000) + 15
+        st.session_state.users[lose_user] = max(100, st.session_state.users.get(lose_user, 1000) - 10)
+        for u in [win_user, lose_user]:
+            st.session_state.match_history.append({
+                "player": u,
+                "opponent": lose_user if u == win_user else win_user,
+                "result": "Thắng" if u == win_user else "Thua",
+                "score": "+15" if u == win_user else "-10",
+            })
+    elif winner == "O":
+        win_user = p1 if s1 == "O" else p2
+        lose_user = p2 if s1 == "O" else p1
+        st.session_state.users[win_user] = st.session_state.users.get(win_user, 1000) + 15
+        st.session_state.users[lose_user] = max(100, st.session_state.users.get(lose_user, 1000) - 10)
+        for u in [win_user, lose_user]:
+            st.session_state.match_history.append({
+                "player": u,
+                "opponent": lose_user if u == win_user else win_user,
+                "result": "Thắng" if u == win_user else "Thua",
+                "score": "+15" if u == win_user else "-10",
+            })
+    elif winner == "Draw":
+        for u in [p1, p2]:
+            st.session_state.users[u] = st.session_state.users.get(u, 1000) + 0
+            st.session_state.match_history.append({
+                "player": u,
+                "opponent": p2 if u == p1 else p1,
+                "result": "Hòa",
+                "score": "0",
+            })
+
+def generate_room_id():
+    return "phong_" + hashlib.md5(str(random.random()).encode()).hexdigest()[:8]
+
+# ----------------- KHỞI TẠO SESSION STATE -----------------
 if "users" not in st.session_state:
     st.session_state.users = {}
 if "match_history" not in st.session_state:
@@ -30,10 +190,6 @@ if "board" not in st.session_state:
     st.session_state.room_id = "phong_mac_dinh"
     st.session_state.is_room_creator = False
     st.session_state.my_symbol = "X"
-    st.session_state.opponent = ""
-
-def generate_room_id():
-    return "phong_" + hashlib.md5(str(random.random()).encode()).hexdigest()[:8]
 
 # ----------------- CSS RESPONSIVE -----------------
 current_size = st.session_state.size
@@ -51,7 +207,6 @@ h1, h2, h3 {{
     color: #5c4033;
     font-family: 'Helvetica Neue', sans-serif;
 }}
-/* Bàn cờ wrapper */
 .chess-board-wrapper {{
     width: 100%;
     max-width: 600px;
@@ -62,7 +217,6 @@ h1, h2, h3 {{
     border-radius: 12px;
     box-shadow: 0 8px 24px rgba(139, 69, 19, 0.25);
 }}
-/* Grid chứa các cột */
 .chess-board-wrapper div[data-testid="stHorizontalBlock"] {{
     display: grid !important;
     grid-template-columns: repeat({current_size}, 1fr) !important;
@@ -77,7 +231,6 @@ h1, h2, h3 {{
     padding: 0 !important;
     aspect-ratio: 1 / 1 !important;
 }}
-/* Nút ô cờ */
 .chess-board-wrapper div.stButton > button {{
     width: 100% !important;
     height: 100% !important;
@@ -94,7 +247,7 @@ h1, h2, h3 {{
     transition: all 0.1s ease;
     padding: 0 !important;
     aspect-ratio: 1 / 1 !important;
-    touch-action: manipulation; /* tối ưu touch */
+    touch-action: manipulation;
 }}
 .chess-board-wrapper div.stButton > button:hover {{
     border-color: #5c4033 !important;
@@ -105,7 +258,6 @@ h1, h2, h3 {{
 .chess-board-wrapper div.stButton > button:active {{
     transform: scale(0.95);
 }}
-/* Hiệu ứng ô thắng */
 .win-cell button {{
     background-color: #ffe066 !important;
     color: #d9480f !important;
@@ -135,7 +287,6 @@ h1, h2, h3 {{
     font-size: 16px;
     color: #5c4033;
 }}
-/* Responsive cho mobile */
 @media (max-width: 480px) {{
     .chess-board-wrapper div.stButton > button {{
         font-size: 14px;
@@ -288,9 +439,6 @@ with tab1:
                 st.session_state.winner = None
                 st.session_state.winning_line = []
                 st.rerun()
-        size = st.session_state.size
-    else:
-        size = st.session_state.size  # sẽ được cập nhật từ phòng
 
     # Online PVP
     if st.session_state.game_mode == "online_pvp":
@@ -495,154 +643,3 @@ with tab1:
                     room["winner"] = None
                     room["winning_line"] = []
             st.rerun()
-
-
-# ----------------- CÁC HÀM HỖ TRỢ (giữ nguyên từ code cũ) -----------------
-def init_room(room_id, size):
-    if room_id in shared_rooms:
-        return False
-    shared_rooms[room_id] = {
-        "board": [[" " for _ in range(size)] for _ in range(size)],
-        "size": size,
-        "turn": "X",
-        "winner": None,
-        "winning_line": [],
-        "players": {},
-    }
-    return True
-
-def join_room(room_id, username):
-    if room_id not in shared_rooms:
-        return None
-    room = shared_rooms[room_id]
-    if username in room["players"]:
-        return room["players"][username]
-    if len(room["players"]) >= 2:
-        return None
-    symbol = "X" if len(room["players"]) == 0 else "O"
-    room["players"][username] = symbol
-    return symbol
-
-def leave_room(room_id, username):
-    if room_id in shared_rooms:
-        room = shared_rooms[room_id]
-        if username in room["players"]:
-            del room["players"][username]
-        if not room["players"]:
-            del shared_rooms[room_id]
-
-def apply_move(room_id, row, col, username):
-    if room_id not in shared_rooms:
-        return False, "Phòng không tồn tại."
-    room = shared_rooms[room_id]
-    if username not in room["players"]:
-        return False, "Bạn chưa tham gia phòng."
-    symbol = room["players"][username]
-    if room["winner"] is not None:
-        return False, "Trận đã kết thúc."
-    if room["turn"] != symbol:
-        return False, "Chưa đến lượt bạn."
-    board = room["board"]
-    size = room["size"]
-    if row < 0 or row >= size or col < 0 or col >= size:
-        return False, "Ô không hợp lệ."
-    if board[row][col] != " ":
-        return False, "Ô đã bị chiếm."
-    board[row][col] = symbol
-    winner, win_line = check_winner(board, size)
-    if winner:
-        room["winner"] = winner
-        room["winning_line"] = win_line
-        update_elo_online(room_id, winner)
-    elif is_full(board, size):
-        room["winner"] = "Draw"
-        update_elo_online(room_id, "Draw")
-    else:
-        room["turn"] = "O" if symbol == "X" else "X"
-    return True, "Thành công"
-
-def update_elo_online(room_id, winner):
-    room = shared_rooms.get(room_id)
-    if not room: return
-    players = room["players"]
-    if len(players) != 2: return
-    user_list = list(players.keys())
-    p1, p2 = user_list[0], user_list[1]
-    s1, s2 = players[p1], players[p2]
-    if winner == "X":
-        win_user = p1 if s1 == "X" else p2
-        lose_user = p2 if s1 == "X" else p1
-        st.session_state.users[win_user] = st.session_state.users.get(win_user, 1000) + 15
-        st.session_state.users[lose_user] = max(100, st.session_state.users.get(lose_user, 1000) - 10)
-        for u in [win_user, lose_user]:
-            st.session_state.match_history.append({
-                "player": u,
-                "opponent": lose_user if u == win_user else win_user,
-                "result": "Thắng" if u == win_user else "Thua",
-                "score": "+15" if u == win_user else "-10",
-            })
-    elif winner == "O":
-        win_user = p1 if s1 == "O" else p2
-        lose_user = p2 if s1 == "O" else p1
-        st.session_state.users[win_user] = st.session_state.users.get(win_user, 1000) + 15
-        st.session_state.users[lose_user] = max(100, st.session_state.users.get(lose_user, 1000) - 10)
-        for u in [win_user, lose_user]:
-            st.session_state.match_history.append({
-                "player": u,
-                "opponent": lose_user if u == win_user else win_user,
-                "result": "Thắng" if u == win_user else "Thua",
-                "score": "+15" if u == win_user else "-10",
-            })
-    elif winner == "Draw":
-        for u in [p1, p2]:
-            st.session_state.users[u] = st.session_state.users.get(u, 1000) + 0
-            st.session_state.match_history.append({
-                "player": u,
-                "opponent": p2 if u == p1 else p1,
-                "result": "Hòa",
-                "score": "0",
-            })
-
-def check_winner(b, sz):
-    win_len = 3 if sz == 3 else 5
-    for r in range(sz):
-        for c in range(sz - win_len + 1):
-            symbol = b[r][c]
-            if symbol != " " and all(b[r][c+k] == symbol for k in range(win_len)):
-                return symbol, [(r, c+k) for k in range(win_len)]
-    for c in range(sz):
-        for r in range(sz - win_len + 1):
-            symbol = b[r][c]
-            if symbol != " " and all(b[r+k][c] == symbol for k in range(win_len)):
-                return symbol, [(r+k, c) for k in range(win_len)]
-    for r in range(sz - win_len + 1):
-        for c in range(sz - win_len + 1):
-            symbol = b[r][c]
-            if symbol != " " and all(b[r+k][c+k] == symbol for k in range(win_len)):
-                return symbol, [(r+k, c+k) for k in range(win_len)]
-    for r in range(sz - win_len + 1):
-        for c in range(win_len - 1, sz):
-            symbol = b[r][c]
-            if symbol != " " and all(b[r+k][c-k] == symbol for k in range(win_len)):
-                return symbol, [(r+k, c-k) for k in range(win_len)]
-    return None, []
-
-def is_full(b, sz):
-    return all(b[r][c] != " " for r in range(sz) for c in range(sz))
-
-def ai_move(size, board):
-    best_move = None
-    for r in range(size):
-        for c in range(size):
-            if board[r][c] == " ":
-                has_neighbor = any(
-                    0 <= r+dr < size and 0 <= c+dc < size and board[r+dr][c+dc] != " "
-                    for dr in [-1,0,1] for dc in [-1,0,1] if not (dr==0 and dc==0)
-                )
-                if has_neighbor or size == 3:
-                    best_move = (r, c)
-                    break
-        if best_move: break
-    if not best_move:
-        best_move = (size//2, size//2)
-    return best_move
