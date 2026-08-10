@@ -3,7 +3,7 @@ import streamlit as st
 import hashlib
 import json
 import os
-import time
+from streamlit_autorefresh import st_autorefresh
 
 st.set_page_config(
     page_title="Cờ Caro Gỗ Trực Tuyến", page_icon="🪵", layout="centered"
@@ -470,9 +470,12 @@ with tab1:
 
     # Online PVP
     if st.session_state.game_mode == "online_pvp":
+        # ---------- Tự động làm mới mỗi 2 giây ----------
+        st_autorefresh(interval=2000, key="auto_refresh")
+
         st.markdown("---")
         st.markdown("### 🌐 Kết nối 2 máy")
-        st.info("Tạo hoặc tham gia phòng, copy link gửi bạn bè. Trang sẽ tự động cập nhật mỗi 2 giây.")
+        st.info("Tạo hoặc tham gia phòng, copy link gửi bạn bè. Trang sẽ tự cập nhật sau mỗi 2 giây.")
         col_r1, col_r2, col_r3 = st.columns([2, 1, 1])
         with col_r1:
             entered_room = st.text_input("Mã phòng", value=st.session_state.room_id)
@@ -595,7 +598,6 @@ with tab1:
                 else:
                     if cols[c].button(label, key=f"btn_{r}_{c}_{st.session_state.game_mode}", disabled=disabled):
                         if st.session_state.game_mode == "vs_ai":
-                            # Nước đi của người
                             st.session_state.board[r][c] = "X"
                             w, line = check_winner(st.session_state.board, size)
                             if w:
@@ -671,16 +673,3 @@ with tab1:
                     room["winning_line"] = []
                     save_room(room_id, room)
             st.rerun()
-
-# ----------------- AUTO REFRESH CHO ONLINE PVP -----------------
-if st.session_state.game_mode == "online_pvp":
-    st.markdown(
-        """
-        <script>
-        setTimeout(function(){
-            window.location.reload();
-        }, 2000);
-        </script>
-        """,
-        unsafe_allow_html=True
-    )
