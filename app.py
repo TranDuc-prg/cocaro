@@ -237,10 +237,10 @@ if "board" not in st.session_state:
 
 current_size = st.session_state.size
 
-# CSS responsive hoàn chỉnh cho mobile
+# CSS hoàn chỉnh cho mobile
 css_code = f"""
 <style>
-    /* Reset và base */
+    /* Reset hoàn toàn */
     .block-container {{
         padding: 0.3rem !important;
         max-width: 100% !important;
@@ -248,7 +248,6 @@ css_code = f"""
         border-radius: 12px;
     }}
     
-    /* Header và text */
     h1, h2, h3, h4 {{
         color: #5c4033;
         font-family: 'Helvetica Neue', sans-serif;
@@ -265,12 +264,11 @@ css_code = f"""
         padding: 3px;
         border-radius: 8px;
         box-shadow: 0 2px 12px rgba(139, 69, 19, 0.2);
-        position: relative;
         overflow: hidden;
     }}
     
-    /* Grid bàn cờ - QUAN TRỌNG: Hiển thị đúng các ô */
-    .chess-board-wrapper div[data-testid="stHorizontalBlock"] {{
+    /* QUAN TRỌNG: Grid hiển thị đúng trên mobile */
+    .chess-board-wrapper .stHorizontalBlock {{
         display: grid !important;
         grid-template-columns: repeat({current_size}, 1fr) !important;
         gap: 1px !important;
@@ -280,20 +278,21 @@ css_code = f"""
         background-color: #c8ad7f;
     }}
     
-    .chess-board-wrapper div[data-testid="column"] {{
+    .chess-board-wrapper .stColumn {{
         width: 100% !important;
         flex: unset !important;
         min-width: 0 !important;
+        max-width: none !important;
         padding: 0 !important;
         margin: 0 !important;
         background-color: #fdf5e6;
         aspect-ratio: 1 / 1 !important;
         display: flex !important;
-        align-items: stretch !important;
+        align-items: center !important;
+        justify-content: center !important;
     }}
     
-    /* Nút ô cờ - QUAN TRỌNG: Hiển thị đúng trên mobile */
-    .chess-board-wrapper div.stButton {{
+    .chess-board-wrapper .stButton {{
         width: 100% !important;
         height: 100% !important;
         padding: 0 !important;
@@ -302,11 +301,11 @@ css_code = f"""
         align-items: stretch !important;
     }}
     
-    .chess-board-wrapper div.stButton > button {{
+    .chess-board-wrapper .stButton button {{
         width: 100% !important;
         height: 100% !important;
-        min-height: 30px !important;
-        font-size: clamp(12px, 2.5vw, 20px) !important;
+        min-height: 28px !important;
+        font-size: clamp(10px, 2.2vw, 18px) !important;
         font-weight: 700 !important;
         border-radius: 0 !important;
         border: 1px solid #c8ad7f !important;
@@ -317,47 +316,46 @@ css_code = f"""
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
-        transition: all 0.15s ease;
         touch-action: manipulation;
         cursor: pointer;
         line-height: 1;
         white-space: nowrap;
+        transition: none;
     }}
     
-    .chess-board-wrapper div.stButton > button:hover:not(:disabled) {{
+    .chess-board-wrapper .stButton button:hover:not(:disabled) {{
         border-color: #5c4033 !important;
         background-color: #faebd7;
-        transform: scale(1.02);
-        z-index: 2;
     }}
     
-    .chess-board-wrapper div.stButton > button:active:not(:disabled) {{
-        transform: scale(0.92);
+    .chess-board-wrapper .stButton button:active:not(:disabled) {{
+        transform: scale(0.95);
     }}
     
-    .chess-board-wrapper div.stButton > button:disabled {{
+    .chess-board-wrapper .stButton button:disabled {{
         opacity: 1;
         cursor: default;
         background-color: #fdf5e6;
     }}
     
-    /* Hiệu ứng ô thắng - MÀU XANH */
+    /* Ô thắng */
     .win-cell {{
         width: 100% !important;
         height: 100% !important;
-    }}
-    
-    .win-cell button {{
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
         background-color: #4ade80 !important;
-        color: #064e3b !important;
         border: 2px solid #16a34a !important;
-        box-shadow: 0 0 15px rgba(74, 222, 128, 0.4) !important;
+        font-weight: 800 !important;
+        font-size: clamp(10px, 2.2vw, 18px) !important;
+        color: #064e3b !important;
         animation: winPulse 1.2s ease-in-out infinite !important;
     }}
     
     @keyframes winPulse {{
         0% {{ transform: scale(1); background-color: #4ade80; }}
-        50% {{ transform: scale(1.06); background-color: #86efac; box-shadow: 0 0 25px rgba(74, 222, 128, 0.7); }}
+        50% {{ transform: scale(1.06); background-color: #86efac; }}
         100% {{ transform: scale(1); background-color: #4ade80; }}
     }}
     
@@ -379,62 +377,73 @@ css_code = f"""
         margin-bottom: 10px;
         box-shadow: 0 1px 4px rgba(0,0,0,0.04);
         text-align: center;
-        font-size: clamp(12px, 1.8vw, 15px);
+        font-size: clamp(11px, 1.8vw, 15px);
         color: #5c4033;
         word-break: break-word;
     }}
     
-    /* Responsive cho mobile */
+    /* Mobile responsive */
     @media (max-width: 600px) {{
         .block-container {{
-            padding: 0.2rem !important;
+            padding: 0.15rem !important;
         }}
         .chess-board-wrapper {{
             border-width: 2px;
             padding: 2px;
             border-radius: 6px;
         }}
-        .chess-board-wrapper div.stButton > button {{
-            font-size: clamp(10px, 2vw, 14px) !important;
-            min-height: 24px !important;
+        .chess-board-wrapper .stButton button {{
+            font-size: clamp(8px, 1.8vw, 12px) !important;
+            min-height: 20px !important;
             border-width: 1px !important;
         }}
+        .win-cell {{
+            font-size: clamp(8px, 1.8vw, 12px) !important;
+        }}
         .status-card {{
-            font-size: 11px;
+            font-size: 10px;
             padding: 4px 6px;
         }}
         .custom-card {{
             padding: 8px;
         }}
         h1 {{
-            font-size: 18px !important;
+            font-size: 16px !important;
             margin: 2px 0 !important;
         }}
         h2 {{
-            font-size: 16px !important;
-        }}
-        h3 {{
             font-size: 14px !important;
         }}
-        .stButton > button {{
-            font-size: 12px !important;
+        h3 {{
+            font-size: 13px !important;
+        }}
+        .stButton button {{
+            font-size: 11px !important;
             padding: 4px 8px !important;
-            min-height: 28px !important;
+            min-height: 24px !important;
         }}
         .stTabs [data-baseweb="tab"] {{
-            padding: 4px 8px !important;
-            font-size: 11px !important;
+            padding: 4px 6px !important;
+            font-size: 10px !important;
         }}
         div[data-testid="stAlert"] {{
             padding: 4px 8px !important;
-            font-size: 11px !important;
+            font-size: 10px !important;
+        }}
+        .stTextInput input {{
+            font-size: 13px !important;
+            padding: 4px 8px !important;
+            min-height: 30px !important;
         }}
     }}
     
     @media (max-width: 400px) {{
-        .chess-board-wrapper div.stButton > button {{
-            font-size: clamp(8px, 1.8vw, 12px) !important;
-            min-height: 18px !important;
+        .chess-board-wrapper .stButton button {{
+            font-size: clamp(6px, 1.5vw, 10px) !important;
+            min-height: 16px !important;
+        }}
+        .win-cell {{
+            font-size: clamp(6px, 1.5vw, 10px) !important;
         }}
         .chess-board-wrapper {{
             padding: 1px;
@@ -442,32 +451,14 @@ css_code = f"""
         }}
     }}
     
-    /* Các tiện ích khác */
+    /* Fix cho các column */
+    div[data-testid="column"] {{
+        padding: 0 1px !important;
+    }}
+    
     .stTabs [data-baseweb="tab-list"] {{
         gap: 2px;
         flex-wrap: wrap;
-    }}
-    
-    .stTabs [data-baseweb="tab"] {{
-        padding: 6px 10px;
-        font-size: clamp(11px, 1.6vw, 14px);
-    }}
-    
-    div[data-testid="stAlert"] {{
-        padding: 6px 10px;
-        font-size: clamp(11px, 1.6vw, 14px);
-    }}
-    
-    /* Điều chỉnh columns */
-    div[data-testid="column"] {{
-        padding: 0 2px !important;
-    }}
-    
-    /* Input trên mobile */
-    .stTextInput > div > div > input {{
-        font-size: 14px !important;
-        padding: 6px 10px !important;
-        min-height: 36px !important;
     }}
 </style>
 """
@@ -476,13 +467,13 @@ st.markdown(css_code, unsafe_allow_html=True)
 # ----------------- ĐĂNG NHẬP -----------------
 if not st.session_state.current_user:
     st.markdown(
-        "<h2 style='text-align: center; color: #5c4033; font-size: clamp(18px, 4vw, 28px);'>🪵 Cờ Caro Gỗ Trực Tuyến 🪵</h2>",
+        "<h2 style='text-align: center; color: #5c4033; font-size: clamp(16px, 4vw, 26px);'>🪵 Cờ Caro Gỗ Trực Tuyến 🪵</h2>",
         unsafe_allow_html=True,
     )
     _, col_login, _ = st.columns([1, 2, 1])
     with col_login:
         st.markdown(
-            "<div class='custom-card'><h3 style='margin-top:0; font-size: clamp(16px, 2.5vw, 22px);'>👤 Đăng nhập</h3><p style='margin-bottom:6px; font-size: clamp(13px, 2vw, 16px);'>Nhập tên của bạn để bắt đầu:</p></div>",
+            "<div class='custom-card'><h3 style='margin-top:0; font-size: clamp(14px, 2.5vw, 20px);'>👤 Đăng nhập</h3><p style='margin-bottom:6px; font-size: clamp(12px, 2vw, 15px);'>Nhập tên của bạn để bắt đầu:</p></div>",
             unsafe_allow_html=True,
         )
         username_input = st.text_input("Tên hiển thị", placeholder="Nhập tên...", label_visibility="collapsed")
@@ -504,7 +495,7 @@ user_score = st.session_state.users.get(user, 1000)
 col_h1, col_h2 = st.columns([3, 1])
 with col_h1:
     st.markdown(
-        f"<div style='font-size: clamp(12px, 1.8vw, 15px);'>🎮 Người chơi: <strong>{user}</strong> | ⭐ Elo: <strong>{user_score}</strong></div>",
+        f"<div style='font-size: clamp(11px, 1.8vw, 14px);'>🎮 Người chơi: <strong>{user}</strong> | ⭐ Elo: <strong>{user_score}</strong></div>",
         unsafe_allow_html=True
     )
 with col_h2:
@@ -516,7 +507,7 @@ with col_h2:
         st.rerun()
 
 st.markdown(
-    "<h1 style='text-align: center; margin: 2px 0 6px 0; font-size: clamp(20px, 4.5vw, 32px);'>🪵 Cờ Caro Gỗ Trực Tuyến 🪵</h1>",
+    "<h1 style='text-align: center; margin: 2px 0 4px 0; font-size: clamp(18px, 4.5vw, 30px);'>🪵 Cờ Caro Gỗ Trực Tuyến 🪵</h1>",
     unsafe_allow_html=True,
 )
 
@@ -628,7 +619,7 @@ with tab1:
 
         st.markdown("---")
         st.markdown("### 🌐 Kết nối 2 máy")
-        st.info("📱 Tạo hoặc tham gia phòng, copy link gửi bạn bè. Trang tự cập nhật sau 2s.")
+        st.info("📱 Tạo hoặc tham gia phòng, copy link gửi bạn bè.")
         
         col_r1, col_r2, col_r3 = st.columns([2, 1, 1])
         with col_r1:
@@ -749,10 +740,11 @@ with tab1:
         unsafe_allow_html=True,
     )
 
-    # ----------------- BÀN CỜ - QUAN TRỌNG: Đã sửa để hiển thị đúng trên mobile -----------------
+    # ----------------- BÀN CỜ - ĐÃ SỬA HOÀN TOÀN CHO MOBILE -----------------
     if board is not None:
         st.markdown('<div class="chess-board-wrapper">', unsafe_allow_html=True)
         for r in range(size):
+            # Tạo columns và sử dụng container để đảm bảo grid hoạt động
             cols = st.columns(size)
             for c in range(size):
                 val = board[r][c]
@@ -773,69 +765,69 @@ with tab1:
                     if winner is not None or val != " " or turn != "X":
                         disabled = True
 
-                if is_winning_cell:
-                    with cols[c]:
-                        # Sử dụng HTML thay vì button để đảm bảo hiển thị
+                with cols[c]:
+                    if is_winning_cell:
+                        # Sử dụng div thay vì button cho ô thắng
                         st.markdown(
-                            f'<div class="win-cell" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background-color:#4ade80;border:2px solid #16a34a;font-weight:800;font-size:clamp(12px,2.5vw,20px);color:#064e3b;animation:winPulse 1.2s ease-in-out infinite;">{label}</div>',
+                            f'<div class="win-cell">{label}</div>',
                             unsafe_allow_html=True
                         )
-                else:
-                    # Sử dụng button chuẩn của Streamlit nhưng đảm bảo hiển thị
-                    if cols[c].button(
-                        label if label else " ", 
-                        key=f"btn_{r}_{c}_{st.session_state.game_mode}", 
-                        disabled=disabled,
-                        use_container_width=True
-                    ):
-                        if st.session_state.game_mode == "vs_ai":
-                            st.session_state.board[r][c] = "X"
-                            w, line = check_winner(st.session_state.board, size)
-                            if w:
-                                st.session_state.winner = w
-                                st.session_state.winning_line = line
-                                if w == "X":
-                                    st.session_state.users[user] = st.session_state.users.get(user, 1000) + 15
-                                    st.session_state.match_history.append({
-                                        "player": user,
-                                        "opponent": "AI Robot",
-                                        "result": "Thắng",
-                                        "score": "+15",
-                                    })
-                                    st.session_state.win_score = {user: "+15"}
-                            elif is_full(st.session_state.board, size):
-                                st.session_state.winner = "Draw"
-                                st.session_state.win_score = {user: "0"}
-                            else:
-                                st.session_state.turn = "O"
-                                ai_r, ai_c = ai_move(size, st.session_state.board)
-                                st.session_state.board[ai_r][ai_c] = "O"
-                                w2, line2 = check_winner(st.session_state.board, size)
-                                if w2:
-                                    st.session_state.winner = w2
-                                    st.session_state.winning_line = line2
-                                    if w2 == "O":
-                                        st.session_state.users[user] = max(100, st.session_state.users.get(user, 1000) - 10)
+                    else:
+                        # Button với key duy nhất
+                        if st.button(
+                            label if label else "·", 
+                            key=f"cell_{r}_{c}_{st.session_state.game_mode}_{st.session_state.turn}", 
+                            disabled=disabled,
+                            use_container_width=True
+                        ):
+                            if st.session_state.game_mode == "vs_ai":
+                                st.session_state.board[r][c] = "X"
+                                w, line = check_winner(st.session_state.board, size)
+                                if w:
+                                    st.session_state.winner = w
+                                    st.session_state.winning_line = line
+                                    if w == "X":
+                                        st.session_state.users[user] = st.session_state.users.get(user, 1000) + 15
                                         st.session_state.match_history.append({
                                             "player": user,
                                             "opponent": "AI Robot",
-                                            "result": "Thua",
-                                            "score": "-10",
+                                            "result": "Thắng",
+                                            "score": "+15",
                                         })
-                                        st.session_state.win_score = {user: "-10"}
+                                        st.session_state.win_score = {user: "+15"}
                                 elif is_full(st.session_state.board, size):
                                     st.session_state.winner = "Draw"
                                     st.session_state.win_score = {user: "0"}
                                 else:
-                                    st.session_state.turn = "X"
-                            st.rerun()
-                        else:
-                            # Online PvP
-                            success, msg = apply_move(st.session_state.room_id, r, c, user)
-                            if success:
+                                    st.session_state.turn = "O"
+                                    ai_r, ai_c = ai_move(size, st.session_state.board)
+                                    st.session_state.board[ai_r][ai_c] = "O"
+                                    w2, line2 = check_winner(st.session_state.board, size)
+                                    if w2:
+                                        st.session_state.winner = w2
+                                        st.session_state.winning_line = line2
+                                        if w2 == "O":
+                                            st.session_state.users[user] = max(100, st.session_state.users.get(user, 1000) - 10)
+                                            st.session_state.match_history.append({
+                                                "player": user,
+                                                "opponent": "AI Robot",
+                                                "result": "Thua",
+                                                "score": "-10",
+                                            })
+                                            st.session_state.win_score = {user: "-10"}
+                                    elif is_full(st.session_state.board, size):
+                                        st.session_state.winner = "Draw"
+                                        st.session_state.win_score = {user: "0"}
+                                    else:
+                                        st.session_state.turn = "X"
                                 st.rerun()
                             else:
-                                st.warning(msg)
+                                # Online PvP
+                                success, msg = apply_move(st.session_state.room_id, r, c, user)
+                                if success:
+                                    st.rerun()
+                                else:
+                                    st.warning(msg)
         st.markdown("</div>", unsafe_allow_html=True)
     else:
         st.info("Chưa có bàn cờ. Hãy tạo hoặc tham gia phòng.")
