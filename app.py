@@ -6,7 +6,7 @@ import os
 from streamlit_autorefresh import st_autorefresh
 
 st.set_page_config(
-    page_title="Cờ Caro", 
+    page_title="Cờ Caro Trực Tuyến", 
     page_icon="🪵", 
     layout="centered",
     initial_sidebar_state="collapsed"
@@ -237,7 +237,7 @@ if "board" not in st.session_state:
 
 current_size = st.session_state.size
 
-# CSS responsive - Chỉ giữ bàn cờ
+# CSS - Chỉ 1 bàn cờ duy nhất
 css_code = f"""
 <style>
     .block-container {{
@@ -247,7 +247,11 @@ css_code = f"""
         border-radius: 12px;
     }}
     
-    /* Bàn cờ */
+    h1, h2, h3 {{
+        color: #5c4033;
+        font-family: 'Helvetica Neue', sans-serif;
+    }}
+    
     .chess-board-wrapper {{
         width: 100%;
         max-width: 500px;
@@ -314,7 +318,6 @@ css_code = f"""
         background-color: #fdf5e6 !important;
     }}
     
-    /* Ô thắng */
     .win-cell {{
         background-color: #4ade80 !important;
         color: #064e3b !important;
@@ -336,18 +339,25 @@ css_code = f"""
         100% {{ transform: scale(1); background-color: #4ade80; }}
     }}
     
-    /* Status */
     .status-card {{
         background-color: #fffaf0;
         border-left: 4px solid #8b4513;
         padding: 6px 10px;
         border-radius: 6px;
-        margin: 5px auto;
+        margin-bottom: 8px;
         text-align: center;
         font-size: clamp(11px, 1.8vw, 15px);
         color: #5c4033;
-        max-width: 500px;
         word-break: break-word;
+    }}
+    
+    .custom-card {{
+        background-color: #ffffff;
+        padding: 12px;
+        border-radius: 10px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        margin-bottom: 10px;
+        border: 1px solid #eaeaea;
     }}
     
     @media (max-width: 600px) {{
@@ -380,6 +390,10 @@ css_code = f"""
             padding: 4px 8px !important;
             min-height: 24px !important;
         }}
+        .stTabs [data-baseweb="tab"] {{
+            padding: 4px 6px !important;
+            font-size: 10px !important;
+        }}
     }}
     
     @media (max-width: 400px) {{
@@ -402,13 +416,17 @@ st.markdown(css_code, unsafe_allow_html=True)
 # ----------------- ĐĂNG NHẬP -----------------
 if not st.session_state.current_user:
     st.markdown(
-        "<h2 style='text-align: center; color: #5c4033; font-size: clamp(16px, 4vw, 26px);'>🪵 Cờ Caro</h2>",
+        "<h2 style='text-align: center; color: #5c4033; font-size: clamp(16px, 4vw, 26px);'>🪵 Cờ Caro Gỗ Trực Tuyến 🪵</h2>",
         unsafe_allow_html=True,
     )
     _, col_login, _ = st.columns([1, 2, 1])
     with col_login:
-        username_input = st.text_input("Tên", placeholder="Nhập tên...", label_visibility="collapsed")
-        if st.button("Vào chơi", use_container_width=True, type="primary"):
+        st.markdown(
+            "<div class='custom-card'><h3 style='margin-top:0; font-size: clamp(14px, 2.5vw, 20px);'>👤 Đăng nhập</h3><p style='margin-bottom:6px; font-size: clamp(12px, 2vw, 15px);'>Nhập tên của bạn để bắt đầu:</p></div>",
+            unsafe_allow_html=True,
+        )
+        username_input = st.text_input("Tên hiển thị", placeholder="Nhập tên...", label_visibility="collapsed")
+        if st.button("Vào Trò Chơi", use_container_width=True, type="primary"):
             if username_input.strip():
                 name = username_input.strip()
                 st.session_state.current_user = name
@@ -416,16 +434,30 @@ if not st.session_state.current_user:
                     st.session_state.users[name] = 1000
                 st.rerun()
             else:
-                st.warning("Vui lòng nhập tên!")
+                st.warning("Vui lòng nhập tên hợp lệ!")
     st.stop()
 
 user = st.session_state.current_user
 user_score = st.session_state.users.get(user, 1000)
 
-# Header đơn giản
+# Header
+col_h1, col_h2 = st.columns([3, 1])
+with col_h1:
+    st.markdown(
+        f"<div style='font-size: clamp(11px, 1.8vw, 14px);'>🎮 Người chơi: <strong>{user}</strong> | ⭐ Elo: <strong>{user_score}</strong></div>",
+        unsafe_allow_html=True
+    )
+with col_h2:
+    if st.button("Đổi", use_container_width=True):
+        if st.session_state.game_mode == "online_pvp" and st.session_state.room_id:
+            leave_room(st.session_state.room_id, user)
+        st.session_state.current_user = ""
+        st.session_state.win_score = None
+        st.rerun()
+
 st.markdown(
-    f"<div style='text-align:center;font-size:clamp(12px,2vw,16px);padding:4px;'>🎮 {user} ⭐ {user_score}</div>",
-    unsafe_allow_html=True
+    "<h1 style='text-align: center; margin: 2px 0 4px 0; font-size: clamp(18px, 4.5vw, 30px);'>🪵 Cờ Caro Gỗ Trực Tuyến 🪵</h1>",
+    unsafe_allow_html=True,
 )
 
 # Query params
@@ -434,24 +466,45 @@ room_from_url = query_params.get("room", None)
 if room_from_url:
     st.session_state.room_id = room_from_url
 
-# Tab đơn giản
-tab1, tab2 = st.tabs(["🎮 Chơi", "🏆 Top"])
+# Tab
+tab1, tab2 = st.tabs(["🎮 Vào Trận Đấu", "🏆 Bảng Xếp Hạng"])
 
 with tab2:
-    st.markdown("### 🏆 Bảng xếp hạng")
-    if not st.session_state.users:
-        st.info("Chưa có người chơi.")
-    else:
-        sorted_users = sorted(st.session_state.users.items(), key=lambda x: x[1], reverse=True)
-        for idx, (u_name, u_pts) in enumerate(sorted_users[:10], 1):
-            medal = "🥇" if idx == 1 else ("🥈" if idx == 2 else ("🥉" if idx == 3 else f"{idx}."))
-            st.markdown(f"{medal} **{u_name}** — `{u_pts} pts`")
+    col_tb1, col_tb2 = st.columns(2)
+    with col_tb1:
+        st.markdown("### 🏆 Top Elo")
+        if not st.session_state.users:
+            st.info("Chưa có người chơi.")
+        else:
+            sorted_users = sorted(st.session_state.users.items(), key=lambda x: x[1], reverse=True)
+            for idx, (u_name, u_pts) in enumerate(sorted_users[:5], 1):
+                medal = "🥇" if idx == 1 else ("🥈" if idx == 2 else ("🥉" if idx == 3 else f"{idx}."))
+                st.markdown(f"{medal} **{u_name}** — `{u_pts} pts`")
+            
+            with st.expander("Xem tất cả"):
+                for idx, (u_name, u_pts) in enumerate(sorted_users, 1):
+                    st.markdown(f"{idx}. **{u_name}** — `{u_pts} pts`")
+    with col_tb2:
+        st.markdown("### 📜 Lịch sử")
+        if not st.session_state.match_history:
+            st.info("Chưa có trận nào.")
+        else:
+            for match in st.session_state.match_history[-10:]:
+                color_res = "green" if match["result"] == "Thắng" else ("red" if match["result"] == "Thua" else "orange")
+                st.markdown(
+                    f"- {match['player']} vs {match['opponent']}: <span style='color:{color_res}; font-weight:bold;'>{match['result']}</span> (`{match['score']}`)",
+                    unsafe_allow_html=True,
+                )
 
 with tab1:
     # Chọn chế độ
     col_m1, col_m2 = st.columns(2)
     with col_m1:
-        if st.button("🤖 AI", use_container_width=True, type="primary" if st.session_state.game_mode == "vs_ai" else "secondary"):
+        if st.button(
+            "🤖 AI",
+            use_container_width=True,
+            type="primary" if st.session_state.game_mode == "vs_ai" else "secondary",
+        ):
             if st.session_state.game_mode == "online_pvp" and st.session_state.room_id:
                 leave_room(st.session_state.room_id, user)
             st.session_state.game_mode = "vs_ai"
@@ -460,11 +513,16 @@ with tab1:
             st.session_state.winner = None
             st.session_state.winning_line = []
             st.session_state.room_id = "phong_mac_dinh"
+            st.session_state.is_room_creator = False
             st.session_state.my_symbol = "X"
             st.session_state.win_score = None
             st.rerun()
     with col_m2:
-        if st.button("🌐 Online", use_container_width=True, type="primary" if st.session_state.game_mode == "online_pvp" else "secondary"):
+        if st.button(
+            "🌐 Online",
+            use_container_width=True,
+            type="primary" if st.session_state.game_mode == "online_pvp" else "secondary",
+        ):
             st.session_state.game_mode = "online_pvp"
             st.session_state.board = []
             st.session_state.turn = "X"
@@ -473,7 +531,7 @@ with tab1:
             st.session_state.win_score = None
             st.rerun()
 
-    # Chọn kích thước
+    # Chọn kích thước (chỉ cho AI)
     if st.session_state.game_mode == "vs_ai":
         col_s1, col_s2, col_s3 = st.columns(3)
         with col_s1:
@@ -507,12 +565,16 @@ with tab1:
     # Online PVP
     if st.session_state.game_mode == "online_pvp":
         st_autorefresh(interval=2000, key="auto_refresh")
+
+        st.markdown("---")
+        st.markdown("### 🌐 Kết nối 2 máy")
+        st.info("📱 Tạo hoặc tham gia phòng, copy link gửi bạn bè.")
         
         col_r1, col_r2, col_r3 = st.columns([2, 1, 1])
         with col_r1:
             entered_room = st.text_input("Mã phòng", value=st.session_state.room_id, label_visibility="collapsed")
         with col_r2:
-            if st.button("Tạo", use_container_width=True):
+            if st.button("Tạo phòng", use_container_width=True):
                 new_room = entered_room.strip() if entered_room.strip() else generate_room_id()
                 if get_room(new_room):
                     st.warning("Phòng đã tồn tại!")
@@ -524,11 +586,12 @@ with tab1:
                     if symbol:
                         st.session_state.room_id = new_room
                         st.session_state.my_symbol = symbol
+                        st.session_state.is_room_creator = True
                         st.query_params["room"] = new_room
-                        st.success(f"✅ {new_room} - {symbol}")
+                        st.success(f"✅ Đã tạo: {new_room} - Bạn là {symbol}")
                         st.rerun()
         with col_r3:
-            if st.button("Vào", use_container_width=True):
+            if st.button("Tham gia", use_container_width=True):
                 room_id = entered_room.strip()
                 if not room_id:
                     st.warning("Nhập mã phòng.")
@@ -543,10 +606,14 @@ with tab1:
                     else:
                         st.session_state.room_id = room_id
                         st.session_state.my_symbol = symbol
+                        st.session_state.is_room_creator = False
                         st.query_params["room"] = room_id
-                        st.success(f"✅ {room_id} - {symbol}")
+                        st.success(f"✅ Đã tham gia: {room_id} - Bạn là {symbol}")
                         st.rerun()
 
+        st.markdown(f"🔗 **Mã phòng:** `{st.session_state.room_id}` (Bạn: {st.session_state.my_symbol})")
+
+        # Lấy trạng thái phòng
         room_data = get_room(st.session_state.room_id)
         if room_data:
             board = room_data["board"]
@@ -570,14 +637,14 @@ with tab1:
                     if player == user:
                         if score == "+15":
                             st.balloons()
-                            st.success(f"🎉 Thắng! +15")
+                            st.success(f"🎉 Bạn thắng! +15 điểm")
                         elif score == "-10":
-                            st.error(f"😢 Thua! -10")
+                            st.error(f"😢 Bạn thua! -10 điểm")
                         elif score == "0":
-                            st.info(f"🤝 Hòa! 0")
+                            st.info(f"🤝 Hòa! 0 điểm")
                         break
         else:
-            st.warning("Phòng không tồn tại.")
+            st.warning("Phòng chưa được tạo hoặc đã bị xóa.")
             board = None
             size = st.session_state.size
             turn = "X"
@@ -585,6 +652,7 @@ with tab1:
             winning_line = []
             players = {}
     else:
+        # AI mode
         board = st.session_state.board
         size = st.session_state.size
         turn = st.session_state.turn
@@ -595,15 +663,15 @@ with tab1:
         if winner == "X":
             st.session_state.win_score = {user: "+15"}
             st.balloons()
-            st.success(f"🎉 Thắng! +15")
+            st.success(f"🎉 Bạn thắng! +15 điểm")
         elif winner == "O":
             st.session_state.win_score = {user: "-10"}
-            st.error(f"😢 Thua! -10")
+            st.error(f"😢 Bạn thua! -10 điểm")
         elif winner == "Draw":
             st.session_state.win_score = {user: "0"}
-            st.info(f"🤝 Hòa! 0")
+            st.info(f"🤝 Hòa! 0 điểm")
 
-    # Hiển thị trạng thái
+    # ----------------- HIỂN THỊ TRẠNG THÁI -----------------
     mode_text = "AI" if st.session_state.game_mode == "vs_ai" else "Online"
     if not winner:
         if st.session_state.game_mode == "vs_ai":
@@ -614,14 +682,14 @@ with tab1:
             else:
                 turn_msg = f"Lượt: <b>Đối thủ ({turn})</b>"
     else:
-        turn_msg = "🏁 Kết thúc!"
+        turn_msg = "🏁 Trận đấu đã kết thúc!"
 
     st.markdown(
-        f"<div class='status-card'>{mode_text} | Phòng: {st.session_state.room_id} | {turn_msg}</div>",
+        f"<div class='status-card'>🎮 {mode_text} | Phòng: <code>{st.session_state.room_id}</code> | {turn_msg}</div>",
         unsafe_allow_html=True,
     )
 
-    # BÀN CỜ
+    # ----------------- BÀN CỜ - CHỈ 1 BÀN CỜ -----------------
     if board is not None:
         st.markdown('<div class="chess-board-wrapper"><div class="board-grid">', unsafe_allow_html=True)
         
@@ -669,7 +737,7 @@ with tab1:
                                         st.session_state.users[user] = st.session_state.users.get(user, 1000) + 15
                                         st.session_state.match_history.append({
                                             "player": user,
-                                            "opponent": "AI",
+                                            "opponent": "AI Robot",
                                             "result": "Thắng",
                                             "score": "+15",
                                         })
@@ -689,7 +757,7 @@ with tab1:
                                             st.session_state.users[user] = max(100, st.session_state.users.get(user, 1000) - 10)
                                             st.session_state.match_history.append({
                                                 "player": user,
-                                                "opponent": "AI",
+                                                "opponent": "AI Robot",
                                                 "result": "Thua",
                                                 "score": "-10",
                                             })
@@ -709,35 +777,37 @@ with tab1:
         
         st.markdown('</div></div>', unsafe_allow_html=True)
     else:
-        st.info("Chưa có bàn cờ.")
+        st.info("Chưa có bàn cờ. Hãy tạo hoặc tham gia phòng.")
 
-    # Kết quả
+    # Thông báo kết quả
     if winner:
         if winner == "X":
-            st.success("🎉 X thắng!")
+            st.success("🎉 Người chơi X chiến thắng!")
         elif winner == "O":
-            st.success("🎉 O thắng!")
+            st.success("🎉 Người chơi O chiến thắng!")
         elif winner == "Draw":
-            st.warning("🤝 Hòa!")
+            st.warning("🤝 Trận đấu hòa!")
 
     # Nút chơi lại
-    if st.button("🔄 Ván mới", use_container_width=True, type="primary"):
-        if st.session_state.game_mode == "vs_ai":
-            st.session_state.board = [[" " for _ in range(size)] for _ in range(size)]
-            st.session_state.turn = "X"
-            st.session_state.winner = None
-            st.session_state.winning_line = []
-            st.session_state.win_score = None
-        else:
-            room_id = st.session_state.room_id
-            room = get_room(room_id)
-            if room:
-                room["board"] = [[" " for _ in range(size)] for _ in range(size)]
-                room["turn"] = "X"
-                room["winner"] = None
-                room["winning_line"] = []
-                room["last_score"] = None
-                room["game_ended"] = False
-                save_room(room_id, room)
+    r_col1, r_col2, r_col3 = st.columns([1, 2, 1])
+    with r_col2:
+        if st.button("🔄 Ván Mới", use_container_width=True, type="primary"):
+            if st.session_state.game_mode == "vs_ai":
+                st.session_state.board = [[" " for _ in range(size)] for _ in range(size)]
+                st.session_state.turn = "X"
+                st.session_state.winner = None
+                st.session_state.winning_line = []
                 st.session_state.win_score = None
-        st.rerun()
+            else:
+                room_id = st.session_state.room_id
+                room = get_room(room_id)
+                if room:
+                    room["board"] = [[" " for _ in range(size)] for _ in range(size)]
+                    room["turn"] = "X"
+                    room["winner"] = None
+                    room["winning_line"] = []
+                    room["last_score"] = None
+                    room["game_ended"] = False
+                    save_room(room_id, room)
+                    st.session_state.win_score = None
+            st.rerun()
