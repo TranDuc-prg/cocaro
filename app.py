@@ -1,19 +1,27 @@
 import streamlit as st
 
-st.set_page_config(page_title="Cờ Caro AI", page_icon="❌⭕", layout="centered")
+st.set_page_config(
+    page_title="Cờ Caro AI - Full Màn Hình", page_icon="❌⭕", layout="wide"
+)
 
-# Khởi tạo trạng thái game trước để lấy kích thước `size`
+# Khởi tạo trạng thái game
 if "board" not in st.session_state:
   st.session_state.size = 3
   st.session_state.board = [[" " for _ in range(3)] for _ in range(3)]
-  st.session_state.turn = "X"
+  st.session_state.turn = "X"  # X: Người, O: AI
   st.session_state.winner = None
 
 current_size = st.session_state.size
 
-# CSS Grid động theo kích thước bàn cờ
+# CSS Grid động hỗ trợ 3x3 và 5x5, căn giữa toàn màn hình
 css_code = f"""
 <style>
+.block-container {{
+    padding-top: 2rem;
+    padding-bottom: 2rem;
+    max-width: 900px;
+}}
+
 div[data-testid="stVerticalBlock"] > div:has(div[data-testid="stHorizontalBlock"]) {{
     display: flex;
     justify-content: center;
@@ -36,7 +44,7 @@ div[data-testid="column"] {{
 div.stButton > button {{
     width: 55px !important;
     height: 55px !important;
-    font-size: 24px;
+    font-size: 22px;
     font-weight: bold;
     border-radius: 0px !important;
     border: 1px solid #1f77b4 !important;
@@ -55,33 +63,32 @@ div.stButton > button:hover {{
 """
 st.markdown(css_code, unsafe_allow_html=True)
 
-st.title("🎮 Cờ Caro AI (Minimax & Alpha-Beta)")
+st.markdown(
+    "<h1 style='text-align: center;'>🎮 Cờ Caro AI (Minimax & Alpha-Beta)</h1>",
+    unsafe_allow_html=True,
+)
 
 
 def check_winner(b, size):
+  win_len = 3 if size == 3 else 5
+
   # Kiểm tra hàng ngang
   for r in range(size):
-    for c in range(size - 2):
-      # Nếu size = 4 cần 4 ô, size = 3 cần 3 ô liên tiếp
-      win_len = 3 if size == 3 else 4
-      if c + win_len <= size:
-        symbol = b[r][c]
-        if symbol != " ":
-          if all(b[r][c + k] == symbol for k in range(win_len)):
-            return symbol
+    for c in range(size - win_len + 1):
+      symbol = b[r][c]
+      if symbol != " ":
+        if all(b[r][c + k] == symbol for k in range(win_len)):
+          return symbol
 
   # Kiểm tra hàng dọc
   for c in range(size):
-    for r in range(size - 2):
-      win_len = 3 if size == 3 else 4
-      if r + win_len <= size:
-        symbol = b[r][c]
-        if symbol != " ":
-          if all(b[r + k][c] == symbol for k in range(win_len)):
-            return symbol
+    for r in range(size - win_len + 1):
+      symbol = b[r][c]
+      if symbol != " ":
+        if all(b[r + k][c] == symbol for k in range(win_len)):
+          return symbol
 
   # Kiểm tra đường chéo chính (\)
-  win_len = 3 if size == 3 else 4
   for r in range(size - win_len + 1):
     for c in range(size - win_len + 1):
       symbol = b[r][c]
@@ -151,8 +158,8 @@ def ai_move():
   size = st.session_state.size
   best_score = -float("inf")
   best_move = None
-  # Giới hạn độ sâu minimax để tránh đơ máy với bảng 4x4
-  max_depth = 3 if size == 4 else 4
+  # Giới hạn độ sâu với bàn cờ lớn 5x5 để tối ưu hiệu năng
+  max_depth = 2 if size == 5 else 4
 
   for r in range(size):
     for c in range(size):
@@ -182,27 +189,29 @@ def ai_move():
     st.session_state.turn = "X"
 
 
-# Chọn kích thước bàn cờ
-col1, col2 = st.columns(2)
-with col1:
-  if st.button("Chơi 3x3"):
-    st.session_state.size = 3
-    st.session_state.board = [[" " for _ in range(3)] for _ in range(3)]
-    st.session_state.turn = "X"
-    st.session_state.winner = None
-    st.rerun()
-with col2:
-  if st.button("Chơi 4x4"):
-    st.session_state.size = 4
-    st.session_state.board = [[" " for _ in range(4)] for _ in range(4)]
-    st.session_state.turn = "X"
-    st.session_state.winner = None
-    st.rerun()
+# Menu chọn chế độ chơi căn giữa
+col_m1, col_m2, col_m3 = st.columns([1, 2, 1])
+with col_m2:
+  b_col1, b_col2 = st.columns(2)
+  with b_col1:
+    if st.button("Chế độ 3x3", use_container_width=True):
+      st.session_state.size = 3
+      st.session_state.board = [[" " for _ in range(3)] for _ in range(3)]
+      st.session_state.turn = "X"
+      st.session_state.winner = None
+      st.rerun()
+  with b_col2:
+    if st.button("Chế độ 5x5", use_container_width=True):
+      st.session_state.size = 5
+      st.session_state.board = [[" " for _ in range(5)] for _ in range(5)]
+      st.session_state.turn = "X"
+      st.session_state.winner = None
+      st.rerun()
 
 size = st.session_state.size
-st.write(
-    f"Trạng thái: **{'Lượt của bạn (X)' if st.session_state.turn == 'X' else'AI đang đi...'
-    }**"
+st.markdown(
+    f"<p style='text-align: center;'>Trạng thái: <b>{'Lượt của bạn (X)' if st.session_state.turn == 'X' else'AI đang đi...'}</b></p>",
+    unsafe_allow_html=True,
 )
 
 # Hiển thị bàn cờ
@@ -236,8 +245,11 @@ if st.session_state.winner:
   else:
     st.warning("🤝 Trận đấu hòa!")
 
-if st.button("Chơi lại từ đầu"):
-  st.session_state.board = [[" " for _ in range(size)] for _ in range(size)]
-  st.session_state.turn = "X"
-  st.session_state.winner = None
-  st.rerun()
+# Nút chơi lại căn giữa
+r_col1, r_col2, r_col3 = st.columns([2, 1, 2])
+with r_col2:
+  if st.button("Chơi lại từ đầu", use_container_width=True):
+    st.session_state.board = [[" " for _ in range(size)] for _ in range(size)]
+    st.session_state.turn = "X"
+    st.session_state.winner = None
+    st.rerun()
