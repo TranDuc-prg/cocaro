@@ -39,7 +39,7 @@ if "board" not in st.session_state:
 
 current_size = st.session_state.size
 
-# Giao diện CSS đồng bộ bàn cờ gỗ liền mạch và các thẻ card tinh tế
+# Giao diện CSS chuẩn xác, chống bẻ chữ dọc
 css_code = f"""
 <style>
 .block-container {{
@@ -99,11 +99,13 @@ div.stButton > button:hover {{
 
 .custom-card {{
     background-color: #ffffff;
-    padding: 20px;
+    padding: 30px;
     border-radius: 12px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.08);
     margin-bottom: 20px;
     border: 1px solid #eaeaea;
+    width: 100%;
+    word-break: normal;
 }}
 </style>
 """
@@ -223,7 +225,6 @@ if st.session_state.game_mode == "menu":
       )
 
 else:
-  # Giao diện khi đang trong trận đấu
   size = st.session_state.size
 
 
@@ -313,7 +314,6 @@ else:
       unsafe_allow_html=True,
   )
 
-  # Hiển thị bàn cờ liền mạch
   for r in range(size):
     cols = st.columns(size)
     for c in range(size):
@@ -349,7 +349,6 @@ else:
             ai_move()
           st.rerun()
 
-  # Thông báo kết quả trò chơi
   if st.session_state.winner:
     if st.session_state.winner == "X":
       st.success("🎉 Chúc mừng! Bạn đã chiến thắng (+15 Elo)!")
