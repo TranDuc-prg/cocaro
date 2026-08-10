@@ -1,72 +1,49 @@
 import random
 import streamlit as st
 import hashlib
+import json
+import os
 
 st.set_page_config(
     page_title="Cờ Caro Gỗ Trực Tuyến", page_icon="🪵", layout="centered"
 )
 
-# ----------------- CÁC HÀM HỖ TRỢ (định nghĩa trước) -----------------
-def check_winner(b, sz):
-    win_len = 3 if sz == 3 else 5
-    # Ngang
-    for r in range(sz):
-        for c in range(sz - win_len + 1):
-            symbol = b[r][c]
-            if symbol != " " and all(b[r][c+k] == symbol for k in range(win_len)):
-                return symbol, [(r, c+k) for k in range(win_len)]
-    # Dọc
-    for c in range(sz):
-        for r in range(sz - win_len + 1):
-            symbol = b[r][c]
-            if symbol != " " and all(b[r+k][c] == symbol for k in range(win_len)):
-                return symbol, [(r+k, c) for k in range(win_len)]
-    # Chéo chính
-    for r in range(sz - win_len + 1):
-        for c in range(sz - win_len + 1):
-            symbol = b[r][c]
-            if symbol != " " and all(b[r+k][c+k] == symbol for k in range(win_len)):
-                return symbol, [(r+k, c+k) for k in range(win_len)]
-    # Chéo phụ
-    for r in range(sz - win_len + 1):
-        for c in range(win_len - 1, sz):
-            symbol = b[r][c]
-            if symbol != " " and all(b[r+k][c-k] == symbol for k in range(win_len)):
-                return symbol, [(r+k, c-k) for k in range(win_len)]
-    return None, []
+# ----------------- LƯU PHÒNG BẰNG FILE JSON (đồng bộ toàn cục) -----------------
+ROOMS_FILE = "rooms.json"
 
-def is_full(b, sz):
-    return all(b[r][c] != " " for r in range(sz) for c in range(sz))
-
-def ai_move(size, board):
-    best_move = None
-    for r in range(size):
-        for c in range(size):
-            if board[r][c] == " ":
-                has_neighbor = any(
-                    0 <= r+dr < size and 0 <= c+dc < size and board[r+dr][c+dc] != " "
-                    for dr in [-1,0,1] for dc in [-1,0,1] if not (dr==0 and dc==0)
-                )
-                if has_neighbor or size == 3:
-                    best_move = (r, c)
-                    break
-        if best_move:
-            break
-    if not best_move:
-        best_move = (size//2, size//2)
-    return best_move
-
-# ----------------- BỘ NHỚ CHIA SẺ CHO PHÒNG ONLINE -----------------
-@st.cache_resource(ttl=3600)
-def get_shared_state():
+def read_rooms():
+    if os.path.exists(ROOMS_FILE):
+        with open(ROOMS_FILE, "r", encoding="utf-8") as f:
+            try:
+                return json.load(f)
+            except:
+                return {}
     return {}
 
-shared_rooms = get_shared_state()
+def write_rooms(rooms):
+    with open(ROOMS_FILE, "w", encoding="utf-8") as f:
+        json.dump(rooms, f, ensure_ascii=False, indent=2)
+
+def get_room(room_id):
+    rooms = read_rooms()
+    return rooms.get(room_id)
+
+def save_room(room_id, room_data):
+    rooms = read_rooms()
+    rooms[room_id] = room_data
+    write_rooms(rooms)
+
+def delete_room(room_id):
+    rooms = read_rooms()
+    if room_id in rooms:
+        del rooms[room_id]
+        write_rooms(rooms)
 
 def init_room(room_id, size):
-    if room_id in shared_rooms:
+    rooms = read_rooms()
+    if room_id in rooms:
         return False
-    shared_rooms[room_id] = {
+    rooms[room_id] = {
         "board": [[" " for _ in range(size)] for _ in range(size)],
         "size": size,
         "turn": "X",
@@ -74,32 +51,35 @@ def init_room(room_id, size):
         "winning_line": [],
         "players": {},
     }
+    write_rooms(rooms)
     return True
 
 def join_room(room_id, username):
-    if room_id not in shared_rooms:
+    room = get_room(room_id)
+    if not room:
         return None
-    room = shared_rooms[room_id]
     if username in room["players"]:
         return room["players"][username]
     if len(room["players"]) >= 2:
         return None
     symbol = "X" if len(room["players"]) == 0 else "O"
     room["players"][username] = symbol
+    save_room(room_id, room)
     return symbol
 
 def leave_room(room_id, username):
-    if room_id in shared_rooms:
-        room = shared_rooms[room_id]
-        if username in room["players"]:
-            del room["players"][username]
+    room = get_room(room_id)
+    if room and username in room["players"]:
+        del room["players"][username]
         if not room["players"]:
-            del shared_rooms[room_id]
+            delete_room(room_id)
+        else:
+            save_room(room_id, room)
 
 def apply_move(room_id, row, col, username):
-    if room_id not in shared_rooms:
+    room = get_room(room_id)
+    if not room:
         return False, "Phòng không tồn tại."
-    room = shared_rooms[room_id]
     if username not in room["players"]:
         return False, "Bạn chưa tham gia phòng."
     symbol = room["players"][username]
@@ -124,10 +104,11 @@ def apply_move(room_id, row, col, username):
         update_elo_online(room_id, "Draw")
     else:
         room["turn"] = "O" if symbol == "X" else "X"
+    save_room(room_id, room)
     return True, "Thành công"
 
 def update_elo_online(room_id, winner):
-    room = shared_rooms.get(room_id)
+    room = get_room(room_id)
     if not room:
         return
     players = room["players"]
@@ -169,6 +150,52 @@ def update_elo_online(room_id, winner):
                 "result": "Hòa",
                 "score": "0",
             })
+
+# ----------------- CÁC HÀM KIỂM TRA, AI -----------------
+def check_winner(b, sz):
+    win_len = 3 if sz == 3 else 5
+    for r in range(sz):
+        for c in range(sz - win_len + 1):
+            symbol = b[r][c]
+            if symbol != " " and all(b[r][c+k] == symbol for k in range(win_len)):
+                return symbol, [(r, c+k) for k in range(win_len)]
+    for c in range(sz):
+        for r in range(sz - win_len + 1):
+            symbol = b[r][c]
+            if symbol != " " and all(b[r+k][c] == symbol for k in range(win_len)):
+                return symbol, [(r+k, c) for k in range(win_len)]
+    for r in range(sz - win_len + 1):
+        for c in range(sz - win_len + 1):
+            symbol = b[r][c]
+            if symbol != " " and all(b[r+k][c+k] == symbol for k in range(win_len)):
+                return symbol, [(r+k, c+k) for k in range(win_len)]
+    for r in range(sz - win_len + 1):
+        for c in range(win_len - 1, sz):
+            symbol = b[r][c]
+            if symbol != " " and all(b[r+k][c-k] == symbol for k in range(win_len)):
+                return symbol, [(r+k, c-k) for k in range(win_len)]
+    return None, []
+
+def is_full(b, sz):
+    return all(b[r][c] != " " for r in range(sz) for c in range(sz))
+
+def ai_move(size, board):
+    best_move = None
+    for r in range(size):
+        for c in range(size):
+            if board[r][c] == " ":
+                has_neighbor = any(
+                    0 <= r+dr < size and 0 <= c+dc < size and board[r+dr][c+dc] != " "
+                    for dr in [-1,0,1] for dc in [-1,0,1] if not (dr==0 and dc==0)
+                )
+                if has_neighbor or size == 3:
+                    best_move = (r, c)
+                    break
+        if best_move:
+            break
+    if not best_move:
+        best_move = (size//2, size//2)
+    return best_move
 
 def generate_room_id():
     return "phong_" + hashlib.md5(str(random.random()).encode()).hexdigest()[:8]
@@ -451,7 +478,7 @@ with tab1:
         with col_r2:
             if st.button("Tạo phòng", use_container_width=True):
                 new_room = entered_room.strip() if entered_room.strip() else generate_room_id()
-                if new_room in shared_rooms:
+                if get_room(new_room):
                     st.warning("Phòng đã tồn tại, hãy tham gia hoặc đổi mã.")
                 else:
                     if st.session_state.room_id and st.session_state.my_symbol:
@@ -470,7 +497,7 @@ with tab1:
                 room_id = entered_room.strip()
                 if not room_id:
                     st.warning("Nhập mã phòng.")
-                elif room_id not in shared_rooms:
+                elif not get_room(room_id):
                     st.warning("Phòng không tồn tại.")
                 else:
                     if st.session_state.room_id and st.session_state.my_symbol:
@@ -488,23 +515,22 @@ with tab1:
 
         st.markdown(f"🔗 **Mã phòng:** `{st.session_state.room_id}` (Bạn là {st.session_state.my_symbol})")
 
-        # Lấy trạng thái phòng
-        room_id = st.session_state.room_id
-        if room_id in shared_rooms:
-            room = shared_rooms[room_id]
-            board = room["board"]
-            size = room["size"]
-            turn = room["turn"]
-            winner = room["winner"]
-            winning_line = room.get("winning_line", [])
-            players = room["players"]
+        # Lấy trạng thái phòng từ file
+        room_data = get_room(st.session_state.room_id)
+        if room_data:
+            board = room_data["board"]
+            size = room_data["size"]
+            turn = room_data["turn"]
+            winner = room_data["winner"]
+            winning_line = room_data.get("winning_line", [])
+            players = room_data["players"]
             st.session_state.size = size
             st.session_state.board = board
             st.session_state.turn = turn
             st.session_state.winner = winner
             st.session_state.winning_line = winning_line
         else:
-            st.warning("Phòng chưa được tạo. Hãy tạo hoặc tham gia phòng hợp lệ.")
+            st.warning("Phòng chưa được tạo hoặc đã bị xóa. Hãy tạo phòng mới.")
             board = None
             size = st.session_state.size
             turn = "X"
@@ -607,7 +633,7 @@ with tab1:
                             st.rerun()
                         else:
                             # Online
-                            success, msg = apply_move(room_id, r, c, user)
+                            success, msg = apply_move(st.session_state.room_id, r, c, user)
                             if success:
                                 st.rerun()
                             else:
@@ -636,10 +662,11 @@ with tab1:
                 st.session_state.winning_line = []
             else:
                 room_id = st.session_state.room_id
-                if room_id in shared_rooms:
-                    room = shared_rooms[room_id]
+                room = get_room(room_id)
+                if room:
                     room["board"] = [[" " for _ in range(size)] for _ in range(size)]
                     room["turn"] = "X"
                     room["winner"] = None
                     room["winning_line"] = []
+                    save_room(room_id, room)
             st.rerun()
