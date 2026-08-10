@@ -1,7 +1,7 @@
 import streamlit as st
 
 st.set_page_config(
-    page_title="Cờ Caro Gỗ", page_icon="🪵", layout="centered"
+    page_title="Cờ Caro Gỗ", page_icon="🪵", layout="wide"
 )
 
 # Khởi tạo trạng thái game (Mặc định 10x10)
@@ -15,26 +15,27 @@ if "board" not in st.session_state:
 
 current_size = st.session_state.size
 
-# CSS Grid chuẩn xác giúp bàn cờ dính liền sát khít thành một khối thống nhất
+# CSS tùy chỉnh tối ưu hóa giao diện bàn cờ gỗ và căn giữa hoàn toàn
 css_code = f"""
 <style>
 .block-container {{
-    padding-top: 1.5rem;
-    padding-bottom: 1.5rem;
-    max-width: 700px;
+    padding-top: 1rem;
+    padding-bottom: 2rem;
+    max-width: 1200px !important;
 }}
 
-/* Gom toàn bộ các hàng của bàn cờ thành một khối lưới duy nhất */
+/* Định dạng khối bàn cờ thành khung gỗ đồng nhất */
 div[data-testid="stVerticalBlock"] > div:has(div[data-testid="stHorizontalBlock"]) {{
     display: flex;
     flex-direction: column;
     align-items: center;
     background-color: #d2b48c;
     border: 4px solid #8b4513;
-    padding: 4px;
+    padding: 6px;
     width: max-content;
     margin: 0 auto;
-    border-radius: 4px;
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
 }}
 
 div[data-testid="stHorizontalBlock"] {{
@@ -76,7 +77,7 @@ div.stButton > button:hover {{
 st.markdown(css_code, unsafe_allow_html=True)
 
 st.markdown(
-    "<h1 style='text-align: center; color: #5c4033;'>🪵 Cờ Caro Gỗ 🪵</h1>",
+    "<h1 style='text-align: center; color: #5c4033; margin-bottom: 10px;'>🪵 Cờ Caro Gỗ 🪵</h1>",
     unsafe_allow_html=True,
 )
 
@@ -162,33 +163,35 @@ def ai_move():
   st.session_state.turn = "X"
 
 
-# Chọn kích thước bàn cờ (3x3, 10x10, 12x12)
-col1, col2, col3 = st.columns(3)
-with col1:
-  if st.button("Chơi 3x3", use_container_width=True):
-    st.session_state.size = 3
-    st.session_state.board = [[" " for _ in range(3)] for _ in range(3)]
-    st.session_state.turn = "X"
-    st.session_state.winner = None
-    st.rerun()
-with col2:
-  if st.button("Chơi 10x10", use_container_width=True):
-    st.session_state.size = 10
-    st.session_state.board = [[" " for _ in range(10)] for _ in range(10)]
-    st.session_state.turn = "X"
-    st.session_state.winner = None
-    st.rerun()
-with col3:
-  if st.button("Chơi 12x12", use_container_width=True):
-    st.session_state.size = 12
-    st.session_state.board = [[" " for _ in range(12)] for _ in range(12)]
-    st.session_state.turn = "X"
-    st.session_state.winner = None
-    st.rerun()
+# Chọn kích thước bàn cờ được đặt gọn gàng ở giữa màn hình
+_, menu_col, _ = st.columns([1, 2, 1])
+with menu_col:
+  col1, col2, col3 = st.columns(3)
+  with col1:
+    if st.button("3x3", use_container_width=True):
+      st.session_state.size = 3
+      st.session_state.board = [[" " for _ in range(3)] for _ in range(3)]
+      st.session_state.turn = "X"
+      st.session_state.winner = None
+      st.rerun()
+  with col2:
+    if st.button("10x10", use_container_width=True):
+      st.session_state.size = 10
+      st.session_state.board = [[" " for _ in range(10)] for _ in range(10)]
+      st.session_state.turn = "X"
+      st.session_state.winner = None
+      st.rerun()
+  with col3:
+    if st.button("12x12", use_container_width=True):
+      st.session_state.size = 12
+      st.session_state.board = [[" " for _ in range(12)] for _ in range(12)]
+      st.session_state.turn = "X"
+      st.session_state.winner = None
+      st.rerun()
 
 size = st.session_state.size
 st.markdown(
-    f"<p style='text-align: center; font-size: 16px;'>Trạng thái: <b>{'Lượt của bạn (X)' if st.session_state.turn == 'X' else 'AI đang đi...'}</b></p>",
+    f"<p style='text-align: center; font-size: 16px; margin-top: 10px;'>Trạng thái: <b>{'Lượt của bạn (X)' if st.session_state.turn == 'X' else 'AI đang đi...'}</b></p>",
     unsafe_allow_html=True,
 )
 
@@ -223,9 +226,9 @@ if st.session_state.winner:
   else:
     st.warning("🤝 Trận đấu hòa!")
 
-# Nút chơi lại
-r_col1, r_col2, r_col3 = st.columns([2, 1, 2])
-with r_col2:
+# Nút chơi lại căn giữa gọn gàng
+_, btn_col, _ = st.columns([2, 1, 2])
+with btn_col:
   if st.button("Chơi lại", use_container_width=True):
     st.session_state.board = [[" " for _ in range(size)] for _ in range(size)]
     st.session_state.turn = "X"
