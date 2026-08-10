@@ -3,12 +3,13 @@ import streamlit as st
 import hashlib
 import json
 import os
+import time
 
 st.set_page_config(
     page_title="Cờ Caro Gỗ Trực Tuyến", page_icon="🪵", layout="centered"
 )
 
-# ----------------- LƯU PHÒNG BẰNG FILE JSON (đồng bộ toàn cục) -----------------
+# ----------------- LƯU PHÒNG BẰNG FILE JSON -----------------
 ROOMS_FILE = "rooms.json"
 
 def read_rooms():
@@ -151,7 +152,7 @@ def update_elo_online(room_id, winner):
                 "score": "0",
             })
 
-# ----------------- CÁC HÀM KIỂM TRA, AI -----------------
+# ----------------- HÀM KIỂM TRA THẮNG, AI -----------------
 def check_winner(b, sz):
     win_len = 3 if sz == 3 else 5
     for r in range(sz):
@@ -471,7 +472,7 @@ with tab1:
     if st.session_state.game_mode == "online_pvp":
         st.markdown("---")
         st.markdown("### 🌐 Kết nối 2 máy")
-        st.info("Tạo hoặc tham gia phòng, copy link gửi bạn bè.")
+        st.info("Tạo hoặc tham gia phòng, copy link gửi bạn bè. Trang sẽ tự động cập nhật mỗi 2 giây.")
         col_r1, col_r2, col_r3 = st.columns([2, 1, 1])
         with col_r1:
             entered_room = st.text_input("Mã phòng", value=st.session_state.room_id)
@@ -670,3 +671,16 @@ with tab1:
                     room["winning_line"] = []
                     save_room(room_id, room)
             st.rerun()
+
+# ----------------- AUTO REFRESH CHO ONLINE PVP -----------------
+if st.session_state.game_mode == "online_pvp":
+    st.markdown(
+        """
+        <script>
+        setTimeout(function(){
+            window.location.reload();
+        }, 2000);
+        </script>
+        """,
+        unsafe_allow_html=True
+    )
