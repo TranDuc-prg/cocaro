@@ -237,120 +237,83 @@ if "board" not in st.session_state:
 
 current_size = st.session_state.size
 
-# CSS hoàn chỉnh cho mobile
+# CSS hoàn chỉnh cho bàn cờ trên mobile
 css_code = f"""
 <style>
-    /* Reset hoàn toàn */
+    /* Reset */
     .block-container {{
-        padding: 0.3rem !important;
+        padding: 0.2rem !important;
         max-width: 100% !important;
         background-color: #fcf9f2;
         border-radius: 12px;
     }}
     
-    h1, h2, h3, h4 {{
+    h1, h2, h3 {{
         color: #5c4033;
         font-family: 'Helvetica Neue', sans-serif;
-        word-break: break-word;
     }}
     
-    /* Wrapper bàn cờ */
+    /* Bàn cờ wrapper */
     .chess-board-wrapper {{
         width: 100%;
-        max-width: 100%;
-        margin: 6px auto;
+        max-width: 500px;
+        margin: 5px auto;
         background-color: #d2b48c;
         border: 3px solid #8b4513;
         padding: 3px;
         border-radius: 8px;
         box-shadow: 0 2px 12px rgba(139, 69, 19, 0.2);
-        overflow: hidden;
     }}
     
-    /* QUAN TRỌNG: Grid hiển thị đúng trên mobile */
-    .chess-board-wrapper .stHorizontalBlock {{
-        display: grid !important;
-        grid-template-columns: repeat({current_size}, 1fr) !important;
-        gap: 1px !important;
-        width: 100% !important;
-        margin: 0 !important;
-        padding: 0 !important;
+    /* Grid bàn cờ - Quan trọng nhất */
+    .board-grid {{
+        display: grid;
+        grid-template-columns: repeat({current_size}, 1fr);
+        gap: 1px;
         background-color: #c8ad7f;
+        width: 100%;
+        aspect-ratio: 1 / 1;
     }}
     
-    .chess-board-wrapper .stColumn {{
-        width: 100% !important;
-        flex: unset !important;
-        min-width: 0 !important;
-        max-width: none !important;
-        padding: 0 !important;
-        margin: 0 !important;
+    /* Mỗi ô cờ */
+    .cell {{
         background-color: #fdf5e6;
-        aspect-ratio: 1 / 1 !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-    }}
-    
-    .chess-board-wrapper .stButton {{
-        width: 100% !important;
-        height: 100% !important;
-        padding: 0 !important;
-        margin: 0 !important;
-        display: flex !important;
-        align-items: stretch !important;
-    }}
-    
-    .chess-board-wrapper .stButton button {{
-        width: 100% !important;
-        height: 100% !important;
-        min-height: 28px !important;
-        font-size: clamp(10px, 2.2vw, 18px) !important;
-        font-weight: 700 !important;
-        border-radius: 0 !important;
-        border: 1px solid #c8ad7f !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        background-color: #fdf5e6;
-        color: #2c2c2c;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        touch-action: manipulation;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: clamp(12px, 2.5vw, 22px);
+        font-weight: 800;
         cursor: pointer;
-        line-height: 1;
-        white-space: nowrap;
-        transition: none;
+        user-select: none;
+        transition: all 0.1s ease;
+        aspect-ratio: 1 / 1;
+        min-height: 20px;
+        border: none;
+        color: #2c2c2c;
     }}
     
-    .chess-board-wrapper .stButton button:hover:not(:disabled) {{
-        border-color: #5c4033 !important;
+    .cell:hover:not(.disabled) {{
         background-color: #faebd7;
+        transform: scale(1.02);
+        z-index: 2;
     }}
     
-    .chess-board-wrapper .stButton button:active:not(:disabled) {{
-        transform: scale(0.95);
+    .cell:active:not(.disabled) {{
+        transform: scale(0.92);
     }}
     
-    .chess-board-wrapper .stButton button:disabled {{
-        opacity: 1;
+    .cell.disabled {{
         cursor: default;
-        background-color: #fdf5e6;
+        opacity: 1;
     }}
     
-    /* Ô thắng */
-    .win-cell {{
-        width: 100% !important;
-        height: 100% !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
+    /* Ô thắng - Màu xanh */
+    .cell.win {{
         background-color: #4ade80 !important;
-        border: 2px solid #16a34a !important;
-        font-weight: 800 !important;
-        font-size: clamp(10px, 2.2vw, 18px) !important;
         color: #064e3b !important;
-        animation: winPulse 1.2s ease-in-out infinite !important;
+        border: 2px solid #16a34a !important;
+        box-shadow: 0 0 15px rgba(74, 222, 128, 0.4) !important;
+        animation: winPulse 1.2s ease-in-out infinite;
     }}
     
     @keyframes winPulse {{
@@ -359,7 +322,18 @@ css_code = f"""
         100% {{ transform: scale(1); background-color: #4ade80; }}
     }}
     
-    /* Card và status */
+    /* Status và card */
+    .status-card {{
+        background-color: #fffaf0;
+        border-left: 4px solid #8b4513;
+        padding: 6px 10px;
+        border-radius: 6px;
+        margin-bottom: 8px;
+        text-align: center;
+        font-size: clamp(11px, 1.8vw, 15px);
+        color: #5c4033;
+    }}
+    
     .custom-card {{
         background-color: #ffffff;
         padding: 12px;
@@ -369,43 +343,24 @@ css_code = f"""
         border: 1px solid #eaeaea;
     }}
     
-    .status-card {{
-        background-color: #fffaf0;
-        border-left: 4px solid #8b4513;
-        padding: 6px 10px;
-        border-radius: 6px;
-        margin-bottom: 10px;
-        box-shadow: 0 1px 4px rgba(0,0,0,0.04);
-        text-align: center;
-        font-size: clamp(11px, 1.8vw, 15px);
-        color: #5c4033;
-        word-break: break-word;
-    }}
-    
-    /* Mobile responsive */
+    /* Responsive mobile */
     @media (max-width: 600px) {{
         .block-container {{
-            padding: 0.15rem !important;
+            padding: 0.1rem !important;
         }}
         .chess-board-wrapper {{
             border-width: 2px;
             padding: 2px;
             border-radius: 6px;
+            max-width: 100%;
         }}
-        .chess-board-wrapper .stButton button {{
-            font-size: clamp(8px, 1.8vw, 12px) !important;
-            min-height: 20px !important;
-            border-width: 1px !important;
-        }}
-        .win-cell {{
-            font-size: clamp(8px, 1.8vw, 12px) !important;
+        .cell {{
+            font-size: clamp(8px, 1.8vw, 14px) !important;
+            min-height: 16px !important;
         }}
         .status-card {{
             font-size: 10px;
             padding: 4px 6px;
-        }}
-        .custom-card {{
-            padding: 8px;
         }}
         h1 {{
             font-size: 16px !important;
@@ -413,9 +368,6 @@ css_code = f"""
         }}
         h2 {{
             font-size: 14px !important;
-        }}
-        h3 {{
-            font-size: 13px !important;
         }}
         .stButton button {{
             font-size: 11px !important;
@@ -426,39 +378,20 @@ css_code = f"""
             padding: 4px 6px !important;
             font-size: 10px !important;
         }}
-        div[data-testid="stAlert"] {{
-            padding: 4px 8px !important;
-            font-size: 10px !important;
-        }}
-        .stTextInput input {{
-            font-size: 13px !important;
-            padding: 4px 8px !important;
-            min-height: 30px !important;
-        }}
     }}
     
     @media (max-width: 400px) {{
-        .chess-board-wrapper .stButton button {{
+        .cell {{
             font-size: clamp(6px, 1.5vw, 10px) !important;
-            min-height: 16px !important;
-        }}
-        .win-cell {{
-            font-size: clamp(6px, 1.5vw, 10px) !important;
+            min-height: 12px !important;
         }}
         .chess-board-wrapper {{
             padding: 1px;
             border-width: 2px;
         }}
-    }}
-    
-    /* Fix cho các column */
-    div[data-testid="column"] {{
-        padding: 0 1px !important;
-    }}
-    
-    .stTabs [data-baseweb="tab-list"] {{
-        gap: 2px;
-        flex-wrap: wrap;
+        .board-grid {{
+            gap: 1px;
+        }}
     }}
 </style>
 """
@@ -740,17 +673,23 @@ with tab1:
         unsafe_allow_html=True,
     )
 
-    # ----------------- BÀN CỜ - ĐÃ SỬA HOÀN TOÀN CHO MOBILE -----------------
+    # ----------------- BÀN CỜ - SỬ DỤNG HTML THUẦN -----------------
     if board is not None:
-        st.markdown('<div class="chess-board-wrapper">', unsafe_allow_html=True)
+        # Tạo HTML bàn cờ
+        board_html = '<div class="chess-board-wrapper"><div class="board-grid">'
+        
         for r in range(size):
-            # Tạo columns và sử dụng container để đảm bảo grid hoạt động
-            cols = st.columns(size)
             for c in range(size):
                 val = board[r][c]
                 label = val if val != " " else ""
                 is_winning_cell = (r, c) in winning_line
-
+                
+                # Xác định class
+                cell_class = "cell"
+                if is_winning_cell:
+                    cell_class += " win"
+                
+                # Kiểm tra disabled
                 disabled = False
                 if st.session_state.game_mode == "online_pvp":
                     if not players or winner is not None:
@@ -764,21 +703,85 @@ with tab1:
                 else:
                     if winner is not None or val != " " or turn != "X":
                         disabled = True
-
+                
+                if disabled:
+                    cell_class += " disabled"
+                
+                # Tạo ô với data attribute
+                board_html += f'<div class="{cell_class}" data-row="{r}" data-col="{c}" data-disabled="{str(disabled).lower()}">{label}</div>'
+        
+        board_html += '</div></div>'
+        
+        # Hiển thị bàn cờ
+        st.markdown(board_html, unsafe_allow_html=True)
+        
+        # Xử lý click bằng JavaScript
+        st.markdown("""
+        <script>
+        document.addEventListener('click', function(e) {
+            const cell = e.target.closest('.cell');
+            if (!cell) return;
+            if (cell.classList.contains('disabled')) return;
+            
+            const row = cell.dataset.row;
+            const col = cell.dataset.col;
+            
+            // Gửi request qua Streamlit
+            const data = {
+                row: parseInt(row),
+                col: parseInt(col)
+            };
+            
+            // Sử dụng Streamlit's built-in messaging
+            if (window.parent && window.parent.postMessage) {
+                window.parent.postMessage({
+                    type: 'streamlit:setComponentValue',
+                    value: data
+                }, '*');
+            }
+        });
+        </script>
+        """, unsafe_allow_html=True)
+        
+        # Xử lý click bằng Streamlit button (thay thế)
+        # Sử dụng columns để tạo grid tương tác
+        st.markdown('<div class="chess-board-wrapper"><div class="board-grid">', unsafe_allow_html=True)
+        
+        for r in range(size):
+            cols = st.columns(size)
+            for c in range(size):
+                val = board[r][c]
+                label = val if val != " " else ""
+                is_winning_cell = (r, c) in winning_line
+                
+                disabled = False
+                if st.session_state.game_mode == "online_pvp":
+                    if not players or winner is not None:
+                        disabled = True
+                    elif st.session_state.my_symbol not in players.values():
+                        disabled = True
+                    elif turn != st.session_state.my_symbol:
+                        disabled = True
+                    elif val != " ":
+                        disabled = True
+                else:
+                    if winner is not None or val != " " or turn != "X":
+                        disabled = True
+                
                 with cols[c]:
                     if is_winning_cell:
-                        # Sử dụng div thay vì button cho ô thắng
                         st.markdown(
-                            f'<div class="win-cell">{label}</div>',
+                            f'<div class="cell win" style="display:flex;align-items:center;justify-content:center;background-color:#4ade80;border:2px solid #16a34a;font-weight:800;font-size:clamp(12px,2.5vw,22px);color:#064e3b;aspect-ratio:1/1;animation:winPulse 1.2s ease-in-out infinite;">{label}</div>',
                             unsafe_allow_html=True
                         )
                     else:
-                        # Button với key duy nhất
+                        # Sử dụng button nhưng ẩn text để hiển thị ô
                         if st.button(
-                            label if label else "·", 
-                            key=f"cell_{r}_{c}_{st.session_state.game_mode}_{st.session_state.turn}", 
+                            label if label else "·",
+                            key=f"cell_{r}_{c}_{st.session_state.game_mode}",
                             disabled=disabled,
-                            use_container_width=True
+                            use_container_width=True,
+                            type="secondary"
                         ):
                             if st.session_state.game_mode == "vs_ai":
                                 st.session_state.board[r][c] = "X"
@@ -828,7 +831,8 @@ with tab1:
                                     st.rerun()
                                 else:
                                     st.warning(msg)
-        st.markdown("</div>", unsafe_allow_html=True)
+        
+        st.markdown('</div></div>', unsafe_allow_html=True)
     else:
         st.info("Chưa có bàn cờ. Hãy tạo hoặc tham gia phòng.")
 
