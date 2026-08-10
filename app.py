@@ -237,12 +237,12 @@ if "board" not in st.session_state:
 
 current_size = st.session_state.size
 
-# CSS responsive cho mobile
+# CSS responsive hoàn chỉnh cho mobile
 css_code = f"""
 <style>
     /* Reset và base */
     .block-container {{
-        padding: 0.5rem !important;
+        padding: 0.3rem !important;
         max-width: 100% !important;
         background-color: #fcf9f2;
         border-radius: 12px;
@@ -258,42 +258,56 @@ css_code = f"""
     /* Wrapper bàn cờ */
     .chess-board-wrapper {{
         width: 100%;
-        max-width: 600px;
-        margin: 8px auto;
+        max-width: 100%;
+        margin: 6px auto;
         background-color: #d2b48c;
-        border: 4px solid #8b4513;
-        padding: 4px;
-        border-radius: 10px;
-        box-shadow: 0 4px 16px rgba(139, 69, 19, 0.2);
+        border: 3px solid #8b4513;
+        padding: 3px;
+        border-radius: 8px;
+        box-shadow: 0 2px 12px rgba(139, 69, 19, 0.2);
         position: relative;
         overflow: hidden;
     }}
     
-    /* Grid bàn cờ - responsive */
+    /* Grid bàn cờ - QUAN TRỌNG: Hiển thị đúng các ô */
     .chess-board-wrapper div[data-testid="stHorizontalBlock"] {{
         display: grid !important;
         grid-template-columns: repeat({current_size}, 1fr) !important;
         gap: 1px !important;
         width: 100% !important;
         margin: 0 !important;
+        padding: 0 !important;
         background-color: #c8ad7f;
     }}
     
     .chess-board-wrapper div[data-testid="column"] {{
         width: 100% !important;
         flex: unset !important;
-        min-width: unset !important;
+        min-width: 0 !important;
         padding: 0 !important;
-        aspect-ratio: 1 / 1 !important;
+        margin: 0 !important;
         background-color: #fdf5e6;
+        aspect-ratio: 1 / 1 !important;
+        display: flex !important;
+        align-items: stretch !important;
     }}
     
-    /* Nút ô cờ */
+    /* Nút ô cờ - QUAN TRỌNG: Hiển thị đúng trên mobile */
+    .chess-board-wrapper div.stButton {{
+        width: 100% !important;
+        height: 100% !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        display: flex !important;
+        align-items: stretch !important;
+    }}
+    
     .chess-board-wrapper div.stButton > button {{
         width: 100% !important;
         height: 100% !important;
-        font-size: clamp(14px, 3vw, 24px) !important;
-        font-weight: 800 !important;
+        min-height: 30px !important;
+        font-size: clamp(12px, 2.5vw, 20px) !important;
+        font-weight: 700 !important;
         border-radius: 0 !important;
         border: 1px solid #c8ad7f !important;
         margin: 0 !important;
@@ -304,16 +318,16 @@ css_code = f"""
         align-items: center !important;
         justify-content: center !important;
         transition: all 0.15s ease;
-        aspect-ratio: 1 / 1 !important;
         touch-action: manipulation;
-        min-height: 30px;
         cursor: pointer;
+        line-height: 1;
+        white-space: nowrap;
     }}
     
     .chess-board-wrapper div.stButton > button:hover:not(:disabled) {{
         border-color: #5c4033 !important;
         background-color: #faebd7;
-        transform: scale(1.03);
+        transform: scale(1.02);
         z-index: 2;
     }}
     
@@ -324,9 +338,15 @@ css_code = f"""
     .chess-board-wrapper div.stButton > button:disabled {{
         opacity: 1;
         cursor: default;
+        background-color: #fdf5e6;
     }}
     
     /* Hiệu ứng ô thắng - MÀU XANH */
+    .win-cell {{
+        width: 100% !important;
+        height: 100% !important;
+    }}
+    
     .win-cell button {{
         background-color: #4ade80 !important;
         color: #064e3b !important;
@@ -344,88 +364,110 @@ css_code = f"""
     /* Card và status */
     .custom-card {{
         background-color: #ffffff;
-        padding: 16px;
+        padding: 12px;
         border-radius: 10px;
         box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-        margin-bottom: 12px;
+        margin-bottom: 10px;
         border: 1px solid #eaeaea;
     }}
     
     .status-card {{
         background-color: #fffaf0;
         border-left: 4px solid #8b4513;
-        padding: 8px 12px;
+        padding: 6px 10px;
         border-radius: 6px;
-        margin-bottom: 12px;
+        margin-bottom: 10px;
         box-shadow: 0 1px 4px rgba(0,0,0,0.04);
         text-align: center;
-        font-size: clamp(13px, 2vw, 16px);
+        font-size: clamp(12px, 1.8vw, 15px);
         color: #5c4033;
         word-break: break-word;
     }}
     
     /* Responsive cho mobile */
-    @media (max-width: 480px) {{
+    @media (max-width: 600px) {{
         .block-container {{
-            padding: 0.25rem !important;
+            padding: 0.2rem !important;
         }}
         .chess-board-wrapper {{
-            border-width: 3px;
-            padding: 3px;
+            border-width: 2px;
+            padding: 2px;
+            border-radius: 6px;
         }}
         .chess-board-wrapper div.stButton > button {{
-            font-size: clamp(12px, 2.5vw, 18px) !important;
-            min-height: 24px;
+            font-size: clamp(10px, 2vw, 14px) !important;
+            min-height: 24px !important;
+            border-width: 1px !important;
         }}
         .status-card {{
-            font-size: 12px;
-            padding: 6px 8px;
+            font-size: 11px;
+            padding: 4px 6px;
         }}
         .custom-card {{
-            padding: 12px;
+            padding: 8px;
         }}
         h1 {{
-            font-size: 20px !important;
+            font-size: 18px !important;
+            margin: 2px 0 !important;
         }}
         h2 {{
-            font-size: 18px !important;
-        }}
-        h3 {{
             font-size: 16px !important;
         }}
-        .stButton > button {{
+        h3 {{
             font-size: 14px !important;
-            padding: 6px 12px !important;
+        }}
+        .stButton > button {{
+            font-size: 12px !important;
+            padding: 4px 8px !important;
+            min-height: 28px !important;
+        }}
+        .stTabs [data-baseweb="tab"] {{
+            padding: 4px 8px !important;
+            font-size: 11px !important;
+        }}
+        div[data-testid="stAlert"] {{
+            padding: 4px 8px !important;
+            font-size: 11px !important;
         }}
     }}
     
-    @media (max-width: 380px) {{
+    @media (max-width: 400px) {{
         .chess-board-wrapper div.stButton > button {{
-            font-size: clamp(10px, 2vw, 14px) !important;
-            min-height: 20px;
+            font-size: clamp(8px, 1.8vw, 12px) !important;
+            min-height: 18px !important;
+        }}
+        .chess-board-wrapper {{
+            padding: 1px;
+            border-width: 2px;
         }}
     }}
     
     /* Các tiện ích khác */
     .stTabs [data-baseweb="tab-list"] {{
-        gap: 4px;
+        gap: 2px;
+        flex-wrap: wrap;
     }}
     
     .stTabs [data-baseweb="tab"] {{
-        padding: 8px 12px;
-        font-size: clamp(12px, 1.8vw, 16px);
+        padding: 6px 10px;
+        font-size: clamp(11px, 1.6vw, 14px);
     }}
     
     div[data-testid="stAlert"] {{
-        padding: 8px 12px;
-        font-size: clamp(12px, 1.8vw, 15px);
+        padding: 6px 10px;
+        font-size: clamp(11px, 1.6vw, 14px);
     }}
     
-    /* Điều chỉnh columns trong mobile */
-    @media (max-width: 480px) {{
-        div[data-testid="column"] {{
-            padding: 0 2px !important;
-        }}
+    /* Điều chỉnh columns */
+    div[data-testid="column"] {{
+        padding: 0 2px !important;
+    }}
+    
+    /* Input trên mobile */
+    .stTextInput > div > div > input {{
+        font-size: 14px !important;
+        padding: 6px 10px !important;
+        min-height: 36px !important;
     }}
 </style>
 """
@@ -434,13 +476,13 @@ st.markdown(css_code, unsafe_allow_html=True)
 # ----------------- ĐĂNG NHẬP -----------------
 if not st.session_state.current_user:
     st.markdown(
-        "<h2 style='text-align: center; color: #5c4033; font-size: clamp(20px, 5vw, 32px);'>🪵 Cờ Caro Gỗ Trực Tuyến 🪵</h2>",
+        "<h2 style='text-align: center; color: #5c4033; font-size: clamp(18px, 4vw, 28px);'>🪵 Cờ Caro Gỗ Trực Tuyến 🪵</h2>",
         unsafe_allow_html=True,
     )
     _, col_login, _ = st.columns([1, 2, 1])
     with col_login:
         st.markdown(
-            "<div class='custom-card'><h3 style='margin-top:0;'>👤 Đăng nhập</h3><p style='margin-bottom:8px;'>Nhập tên của bạn để bắt đầu:</p></div>",
+            "<div class='custom-card'><h3 style='margin-top:0; font-size: clamp(16px, 2.5vw, 22px);'>👤 Đăng nhập</h3><p style='margin-bottom:6px; font-size: clamp(13px, 2vw, 16px);'>Nhập tên của bạn để bắt đầu:</p></div>",
             unsafe_allow_html=True,
         )
         username_input = st.text_input("Tên hiển thị", placeholder="Nhập tên...", label_visibility="collapsed")
@@ -462,7 +504,7 @@ user_score = st.session_state.users.get(user, 1000)
 col_h1, col_h2 = st.columns([3, 1])
 with col_h1:
     st.markdown(
-        f"<div style='font-size: clamp(13px, 2vw, 16px);'>🎮 Người chơi: <strong>{user}</strong> | ⭐ Elo: <strong>{user_score}</strong></div>",
+        f"<div style='font-size: clamp(12px, 1.8vw, 15px);'>🎮 Người chơi: <strong>{user}</strong> | ⭐ Elo: <strong>{user_score}</strong></div>",
         unsafe_allow_html=True
     )
 with col_h2:
@@ -474,7 +516,7 @@ with col_h2:
         st.rerun()
 
 st.markdown(
-    "<h1 style='text-align: center; margin: 4px 0 8px 0; font-size: clamp(22px, 5vw, 36px);'>🪵 Cờ Caro Gỗ Trực Tuyến 🪵</h1>",
+    "<h1 style='text-align: center; margin: 2px 0 6px 0; font-size: clamp(20px, 4.5vw, 32px);'>🪵 Cờ Caro Gỗ Trực Tuyến 🪵</h1>",
     unsafe_allow_html=True,
 )
 
@@ -707,7 +749,7 @@ with tab1:
         unsafe_allow_html=True,
     )
 
-    # ----------------- BÀN CỜ -----------------
+    # ----------------- BÀN CỜ - QUAN TRỌNG: Đã sửa để hiển thị đúng trên mobile -----------------
     if board is not None:
         st.markdown('<div class="chess-board-wrapper">', unsafe_allow_html=True)
         for r in range(size):
@@ -733,10 +775,15 @@ with tab1:
 
                 if is_winning_cell:
                     with cols[c]:
-                        st.markdown(f'<div class="win-cell"><button>{label}</button></div>', unsafe_allow_html=True)
+                        # Sử dụng HTML thay vì button để đảm bảo hiển thị
+                        st.markdown(
+                            f'<div class="win-cell" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background-color:#4ade80;border:2px solid #16a34a;font-weight:800;font-size:clamp(12px,2.5vw,20px);color:#064e3b;animation:winPulse 1.2s ease-in-out infinite;">{label}</div>',
+                            unsafe_allow_html=True
+                        )
                 else:
+                    # Sử dụng button chuẩn của Streamlit nhưng đảm bảo hiển thị
                     if cols[c].button(
-                        label, 
+                        label if label else " ", 
                         key=f"btn_{r}_{c}_{st.session_state.game_mode}", 
                         disabled=disabled,
                         use_container_width=True
