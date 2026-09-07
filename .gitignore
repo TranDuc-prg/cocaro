@@ -1,0 +1,6 @@
+# Bỏ qua cơ sở dữ liệu SQLite cục bộ trên Cloud
+caro.db
+
+# Bỏ qua tệp biên dịch Python và cache
+__pycache__/
+*.py[cod]
