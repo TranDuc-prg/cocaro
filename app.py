@@ -225,7 +225,6 @@ with st.sidebar:
         st.query_params.clear()
         st.rerun()
 
-    # 👉 NÚT KÍCH HOẠT TRANG QUẢN TRỊ DÀNH CHO ADMIN
     if user_role == "admin":
         st.markdown("---")
         if st.button("👑 Quản Trị Hệ Thống", use_container_width=True, type="primary" if st.session_state.get("game_mode") == "admin" else "secondary"):
@@ -402,7 +401,6 @@ else:
         winning_line = st.session_state.winning_line
         players = {user: "X"}
 
-    # Tính toán thời gian
     elapsed_time = int(time.time() - st.session_state.turn_start_time)
     time_left = max(0, TURN_TIME_LIMIT - elapsed_time)
 
@@ -572,7 +570,6 @@ else:
                         else:
                             st.warning(msg)
 
-    # ---- Bảng so sánh hiệu năng thuật toán & Xuất Replay ----
     st.markdown("---")
     col_exp1, col_exp2 = st.columns(2)
 
