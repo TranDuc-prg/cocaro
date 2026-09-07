@@ -83,7 +83,8 @@ if "last_move" not in st.session_state:
     st.session_state.last_move = None
 
 TURN_TIME_LIMIT = 30  
-if not st.session_state.get("winner") and st.session_state.get("game_mode") != "admin":
+# Chỉ bật autorefresh khi đang chơi Online (giúp cập nhật trận đấu theo thời gian thực) và ván đấu chưa kết thúc
+if not st.session_state.get("winner") and st.session_state.get("game_mode") == "online_pvp":
     st_autorefresh(interval=1000, key="global_autorefresh")
 
 if st.session_state.get('trigger_rerun'):
@@ -129,20 +130,19 @@ if st.session_state.board == [] and st.session_state.game_mode == "vs_ai":
 
 current_size = st.session_state.size
 
-# ---- Hàm vẽ bàn cờ Caro dạng Ảnh (Canvas) chuẩn tỷ lệ responsive ----
+# ---- Hàm vẽ bàn cờ Caro dạng Ảnh (Canvas) hỗ trợ Highlight Last Move ----
 def draw_caro_board(board, size, winning_line=[], last_move=None):
-    img_size = 600  # Tăng độ phân giải ảnh gốc lên 600x600 để sắc nét trên mọi thiết bị
-    padding = 30
+    img_size = 550  
+    padding = 25
     board_draw_size = img_size - (2 * padding)
     cell_size = board_draw_size / size
     
     image = Image.new("RGB", (img_size, img_size), "#f3e5ab")
     draw = ImageDraw.Draw(image)
     
-    # Viền ngoài bàn cờ
     draw.rectangle(
-        [padding - 4, padding - 4, img_size - padding + 4, img_size - padding + 4],
-        outline="#5c2c16", width=5
+        [padding - 3, padding - 3, img_size - padding + 3, img_size - padding + 3],
+        outline="#5c2c16", width=4
     )
     
     for r in range(size):
@@ -159,20 +159,18 @@ def draw_caro_board(board, size, winning_line=[], last_move=None):
             else:
                 cell_color = "#faedcd" if (r + c) % 2 == 0 else "#e9d8a6"
                 
-            draw.rectangle([x1, y1, x2, y2], fill=cell_color, outline="#bc6c25", width=2)
+            draw.rectangle([x1, y1, x2, y2], fill=cell_color, outline="#bc6c25", width=1)
             
             val = board[r][c] if r < len(board) and c < len(board[r]) else " "
             if val != " ":
                 try:
-                    # Tăng tỷ lệ font chữ lên 75% kích thước ô để quân X, O hiển thị to rõ nét
-                    font_size_px = max(12, int(cell_size * 0.75))
+                    font_size_px = int(cell_size * 0.65)
                     font = ImageFont.truetype("arial.ttf", font_size_px)
                 except:
                     font = ImageFont.load_default()
                 
                 color = "#e63946" if val == "X" else "#1d3557"
                 
-                # Căn giữa tuyệt đối cho ký tự X và O dựa trên bbox
                 bbox = draw.textbbox((0, 0), val, font=font)
                 w = bbox[2] - bbox[0]
                 h = bbox[3] - bbox[1]
@@ -505,8 +503,8 @@ else:
             rendered_w = coords.get("width", 550)
             rendered_h = coords.get("height", 550)
             
-            img_size = 600
-            padding = 30
+            img_size = 550
+            padding = 25
             
             scaled_x = click_x * (img_size / rendered_w)
             scaled_y = click_y * (img_size / rendered_h)
