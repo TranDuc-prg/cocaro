@@ -18,7 +18,7 @@ import json
 
 from dangnhap import render_login_page
 from dangky import render_register_page
-from admin import render_admin_page  # 👉 Import trang quản trị admin
+from admin import render_admin_page
 
 def get_level(elo):
     return max(1, elo // 100)
@@ -75,17 +75,20 @@ if "hint_move" not in st.session_state:
     st.session_state.hint_move = None
 if "board_history" not in st.session_state:
     st.session_state.board_history = []
-if "turn_start_time" not in st.session_state:
-    st.session_state.turn_start_time = time.time()
 if "ai_difficulty" not in st.session_state:
     st.session_state.ai_difficulty = "Trung bình"
 if "last_move" not in st.session_state:
     st.session_state.last_move = None
 
-TURN_TIME_LIMIT = 30  
-# Chỉ bật autorefresh khi đang chơi Online (giúp cập nhật trận đấu theo thời gian thực) và ván đấu chưa kết thúc
-if not st.session_state.get("winner") and st.session_state.get("game_mode") == "online_pvp":
-    st_autorefresh(interval=1000, key="global_autorefresh")
+# CHỈ BẬT autorefresh khi đang chơi Online và ván đấu chưa kết thúc (Tránh đơ lác ở chế độ AI)
+is_online_playing = (
+    st.session_state.get("game_mode") == "online_pvp" 
+    and st.session_state.get("room_id") 
+    and not st.session_state.get("winner")
+)
+
+if is_online_playing:
+    st_autorefresh(interval=1500, key="online_game_autorefresh")
 
 if st.session_state.get('trigger_rerun'):
     st.session_state['trigger_rerun'] = False
@@ -104,7 +107,6 @@ if st.query_params.get("reset") == "true":
         st.session_state.hint_move = None
         st.session_state.board_history = []
         st.session_state.last_move = None
-        st.session_state.turn_start_time = time.time()
     else:
         room_id = st.session_state.get("room_id", "phong_mac_dinh")
         room = get_room_info(room_id)
@@ -181,12 +183,11 @@ def draw_caro_board(board, size, winning_line=[], last_move=None):
                 
     return image
 
-# ---- CSS Tinh chỉnh Giao diện Thương mại ----
+# ---- CSS Tinh chỉnh Giao diện ----
 css_code = """
 <style>
     .stApp { background: #f8f9fa; }
     .main-title { text-align: center; color: #2c3e50; font-size: 32px; font-weight: 800; margin-bottom: 10px; }
-    .hud-card { background: white; padding: 15px 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border: 1px solid #eaeaea; margin-bottom: 15px; }
     .stButton>button { border-radius: 8px; font-weight: 600; transition: all 0.2s ease-in-out; }
     .stButton>button:hover { transform: translateY(-1px); box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
 </style>
@@ -255,7 +256,6 @@ with st.sidebar:
             st.session_state.hint_move = None
             st.session_state.board_history = []
             st.session_state.last_move = None
-            st.session_state.turn_start_time = time.time()
             st.query_params.clear()
             st.session_state['trigger_rerun'] = True
     with c_m2:
@@ -275,7 +275,6 @@ with st.sidebar:
             st.session_state.hint_move = None
             st.session_state.board_history = []
             st.session_state.last_move = None
-            st.session_state.turn_start_time = time.time()
             st.query_params.clear()
             st.session_state['trigger_rerun'] = True
 
@@ -294,7 +293,6 @@ with st.sidebar:
         st.session_state.hint_move = None
         st.session_state.board_history = []
         st.session_state.last_move = None
-        st.session_state.turn_start_time = time.time()
         st.session_state['trigger_rerun'] = True
 
     if st.session_state.game_mode == "vs_ai":
@@ -353,7 +351,7 @@ with st.sidebar:
         for idx, u in enumerate(users[:5], 1):
             st.caption(f"{idx}. **{u['username']}** - `{u['elo']} pts`")
 
-# ================= MAIN AREA: KHU VỰC TRẬN ĐẤU / QUẢN TRỊ =================
+# ================= MAIN AREA =================
 if st.session_state.get("game_mode") == "admin" and user_role == "admin":
     render_admin_page()
 else:
@@ -402,19 +400,8 @@ else:
         winning_line = st.session_state.winning_line
         players = {user: "X"}
 
-    elapsed_time = int(time.time() - st.session_state.turn_start_time)
-    time_left = max(0, TURN_TIME_LIMIT - elapsed_time)
-
-    if not winner and st.session_state.game_mode == "vs_ai" and time_left == 0 and turn == "X":
-        st.session_state.winner = "O"
-        st.session_state.show_winner_overlay = True
-        current = get_user_elo(user)
-        set_user_elo(user, max(100, current - 10))
-        add_match_history(user, "AI Robot", "Thua (Hết giờ)", "-10")
-        st.session_state.win_score = {user: "-10"}
-
-    # Thanh trạng thái & Đồng hồ HUD gọn gàng
-    col_status1, col_status2, col_status3 = st.columns([2, 2, 2])
+    # Thanh trạng thái giao diện
+    col_status1, col_status2 = st.columns([1, 1])
     with col_status1:
         mode_label = f"🤖 Đấu với AI ({st.session_state.ai_difficulty})" if st.session_state.game_mode == "vs_ai" else f"🌐 Phòng: {st.session_state.room_id}"
         st.info(f"**Chế độ:** {mode_label}")
@@ -436,16 +423,13 @@ else:
             st.success(f"**Lượt đi:** {turn_str}")
         else:
             st.warning("**Trạng thái:** Đã kết thúc")
-    with col_status3:
-        time_color = "red" if time_left <= 10 else "green"
-        st.markdown(f"<div style='background: white; padding: 8px 12px; border-radius: 8px; border: 1px solid #ddd; text-align: center;'>⏱️ Thời gian: <span style='color:{time_color}; font-weight:bold;'>{time_left}s</span></div>", unsafe_allow_html=True)
 
-    # Trực quan hóa thông số AI (Nodes & Thời gian)
+    # Trực quan hóa thông số AI
     if st.session_state.ai_stats and st.session_state.game_mode == "vs_ai":
         nodes, duration = st.session_state.ai_stats
         st.caption(f"🤖 **Thông số AI:** Đã duyệt `{nodes}` nodes trong `{duration:.2f} ms`")
 
-    # Các nút hỗ trợ (Gợi ý, Rút cờ, Ván mới)
+    # Các nút điều khiển phụ trợ
     if st.session_state.game_mode == "vs_ai":
         c_btn1, c_btn2, c_btn3 = st.columns([2, 2, 2])
         with c_btn1:
@@ -463,7 +447,6 @@ else:
                     st.session_state.turn = "X"
                     st.session_state.hint_move = None
                     st.session_state.last_move = st.session_state.board_history[-1] if st.session_state.board_history else None
-                    st.session_state.turn_start_time = time.time()
                     st.session_state['trigger_rerun'] = True
         with c_btn3:
             if st.button("🔄 Ván mới nhanh", use_container_width=True):
@@ -477,10 +460,9 @@ else:
                 st.session_state.hint_move = None
                 st.session_state.board_history = []
                 st.session_state.last_move = None
-                st.session_state.turn_start_time = time.time()
                 st.session_state['trigger_rerun'] = True
 
-    # Hiển thị Bảng cờ Canvas trung tâm
+    # Hiển thị bàn cờ Canvas
     if board is not None and board != []:
         board_image = draw_caro_board(board, current_size, winning_line, st.session_state.last_move)
         
@@ -561,12 +543,10 @@ else:
                                 st.session_state.show_winner_overlay = True
                             else:
                                 st.session_state.turn = "X"
-                        st.session_state.turn_start_time = time.time()
                         st.session_state['trigger_rerun'] = True
                     else:
                         success, msg = apply_move(st.session_state.room_id, r, c, user)
                         if success:
-                            st.session_state.turn_start_time = time.time()
                             st.session_state['trigger_rerun'] = True
                         else:
                             st.warning(msg)
@@ -645,7 +625,6 @@ else:
                     st.session_state.hint_move = None
                     st.session_state.board_history = []
                     st.session_state.last_move = None
-                    st.session_state.turn_start_time = time.time()
 
                     if st.session_state.get("game_mode") != "vs_ai":
                         room_id = st.session_state.get("room_id")
