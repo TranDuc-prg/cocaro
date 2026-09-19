@@ -144,7 +144,8 @@ CoCaRo/
 └── .gitignore
 
 ## 8. Hướng dẫn cài đặt và chạy chương trình
-![Hướng dẫn ](Huongdan.png)
+
+![Hướng dẫn cài đặt và chạy chương trình](Huongdan.png)
 
 ### 8.1. Yêu cầu môi trường
 
@@ -154,5 +155,21 @@ CoCaRo/
 - Git
 
 ### 8.2. Cài đặt thư viện
+
 Mở Terminal/PowerShell tại thư mục dự án:
+
+```bash
 pip install -r requirements.txt
+```
+
+### 8.3. Chạy chương trình
+
+```bash
+streamlit run app.py --server.port 8502
+```
+
+Sau khi chạy thành công, mở:
+
+```text
+http://localhost:8502
+```
