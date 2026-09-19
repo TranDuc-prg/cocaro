@@ -1,8 +1,7 @@
-# game_logic.py (Tối ưu triệt để giới hạn nhánh tìm kiếm cho bàn cờ lớn)
 import math
 import random
 import time
-from db import get_room, save_room
+from db import get_room_info, save_room
 from elo import update_elo_online
 
 def check_winner(board, size):
@@ -12,7 +11,7 @@ def check_winner(board, size):
         for c in range(size - win_len + 1):
             symbol = board[r][c]
             if symbol != " " and all(board[r][c+k] == symbol for k in range(win_len)):
-                if size > 3:
+                if size >= 5:
                     left_blocked = (c > 0 and board[r][c-1] != " " and board[r][c-1] != symbol)
                     right_blocked = (c + win_len < size and board[r][c+win_len] != " " and board[r][c+win_len] != symbol)
                     if left_blocked and right_blocked:
@@ -23,7 +22,7 @@ def check_winner(board, size):
         for r in range(size - win_len + 1):
             symbol = board[r][c]
             if symbol != " " and all(board[r+k][c] == symbol for k in range(win_len)):
-                if size > 3:
+                if size >= 5:
                     top_blocked = (r > 0 and board[r-1][c] != " " and board[r-1][c] != symbol)
                     bot_blocked = (r + win_len < size and board[r+win_len][c] != " " and board[r+win_len][c] != symbol)
                     if top_blocked and bot_blocked:
@@ -60,7 +59,7 @@ def evaluate_board(board, size, ai_symbol, human_symbol):
 
 _node_counter = 0
 
-def minimax(board, size, depth, alpha, beta, maximizing_player, ai_symbol, human_symbol):
+def minimax(board, size, depth, alpha, beta, maximizing_player, ai_symbol, human_symbol, use_alpha_beta=True):
     global _node_counter
     _node_counter += 1
 
@@ -74,18 +73,13 @@ def minimax(board, size, depth, alpha, beta, maximizing_player, ai_symbol, human
 
     valid_moves = []
     
-    # Nếu bàn cờ trống hoàn toàn, trả về luôn ô giữa
-    if all(board[r][c] == " " for r in range(size) for c in range(size)):
-        return 0, (size // 2, size // 2)
-
-    # Lọc các ô lân cận có chứa quân cờ (bán kính 2 ô)
     for r in range(size):
         for c in range(size):
             if board[r][c] == " ":
                 if size > 5:
                     has_neighbor = any(
                         0 <= r+dr < size and 0 <= c+dc < size and board[r+dr][c+dc] != " "
-                        for dr in [-2, -1, 0, 1, 2] for dc in [-2, -1, 0, 1, 2] if not (dr == 0 and dr == 0)
+                        for dr in [-2, -1, 0, 1, 2] for dc in [-2, -1, 0, 1, 2] if not (dr == 0 and dc == 0)
                     )
                     if has_neighbor:
                         valid_moves.append((r, c))
@@ -98,7 +92,6 @@ def minimax(board, size, depth, alpha, beta, maximizing_player, ai_symbol, human
                 if board[r][c] == " ":
                     valid_moves.append((r, c))
 
-    # QUAN TRỌNG: Nếu bàn cờ lớn và số lượng ô trống quá nhiều, chỉ lấy tối đa 15 ô gần tâm/gần quân đã đánh nhất để chống đơ
     if size >= 10 and len(valid_moves) > 15:
         center = size // 2
         valid_moves.sort(key=lambda pos: abs(pos[0] - center) + abs(pos[1] - center))
@@ -113,30 +106,30 @@ def minimax(board, size, depth, alpha, beta, maximizing_player, ai_symbol, human
         max_eval = -math.inf
         for (r, c) in valid_moves:
             board[r][c] = ai_symbol
-            eval, _ = minimax(board, size, depth - 1, alpha, beta, False, ai_symbol, human_symbol)
+            eval, _ = minimax(board, size, depth - 1, alpha, beta, False, ai_symbol, human_symbol, use_alpha_beta)
             board[r][c] = " "
             if eval > max_eval:
                 max_eval = eval
                 best_move = (r, c)
             alpha = max(alpha, eval)
-            if beta <= alpha:
+            if use_alpha_beta and beta <= alpha:
                 break
         return max_eval, best_move
     else:
         min_eval = math.inf
         for (r, c) in valid_moves:
             board[r][c] = human_symbol
-            eval, _ = minimax(board, size, depth - 1, alpha, beta, True, ai_symbol, human_symbol)
+            eval, _ = minimax(board, size, depth - 1, alpha, beta, True, ai_symbol, human_symbol, use_alpha_beta)
             board[r][c] = " "
             if eval < min_eval:
                 min_eval = eval
                 best_move = (r, c)
             beta = min(beta, eval)
-            if beta <= alpha:
+            if use_alpha_beta and beta <= alpha:
                 break
         return min_eval, best_move
 
-def ai_move(size, board, difficulty="Trung bình", ai_symbol="O", human_symbol="X"):
+def ai_move(size, board, difficulty="Trung bình", ai_symbol="O", human_symbol="X", use_alpha_beta=True):
     global _node_counter
     _node_counter = 0
     
@@ -147,7 +140,6 @@ def ai_move(size, board, difficulty="Trung bình", ai_symbol="O", human_symbol="
         center = size // 2
         return center, center, 1, 0.0
     
-    # Ép độ sâu an toàn tối đa cho bàn cờ lớn (10x10, 12x12) để tuyệt đối không bị treo
     if size >= 10:
         depth = 1 if difficulty == "Dễ" else 2
     else:
@@ -158,7 +150,7 @@ def ai_move(size, board, difficulty="Trung bình", ai_symbol="O", human_symbol="
         else:
             depth = 3
         
-    _, move = minimax(board, size, depth, -math.inf, math.inf, True, ai_symbol, human_symbol)
+    _, move = minimax(board, size, depth, -math.inf, math.inf, True, ai_symbol, human_symbol, use_alpha_beta)
     elapsed_time = (time.time() - start_time) * 1000
     
     if move is None:
@@ -171,50 +163,117 @@ def get_ai_hint(size, board, human_symbol="X", ai_symbol="O"):
     global _node_counter
     _node_counter = 0
     depth = 2 if size >= 10 else 3
-    _, move = minimax(board, size, depth, -math.inf, math.inf, True, human_symbol, ai_symbol)
+    _, move = minimax(board, size, depth, -math.inf, math.inf, True, human_symbol, ai_symbol, use_alpha_beta=True)
     if not move:
         empty_cells = [(r, c) for r in range(size) for c in range(size) if board[r][c] == " "]
         return random.choice(empty_cells) if empty_cells else (0, 0)
     return move
 
-def apply_move(room_id, row, col, username):
-    room = get_room(room_id)
-    if not room: 
-        return False, "Phòng không tồn tại."
-    if username not in room["players"]: 
-        return False, "Bạn chưa tham gia phòng."
+def benchmark_algorithms(size, depth=2, board_state=None):
     
-    symbol = room["players"][username]
-    if room["winner"] is not None: 
-        return False, "Trận đã kết thúc."
-    if room["turn"] != symbol: 
-        return False, "Chưa đến lượt bạn."
-        
-    board = room["board"]
-    size = room["size"]
-    
-    if row < 0 or row >= size or col < 0 or col >= size: 
-        return False, "Ô không hợp lệ."
-    if board[row][col] != " ": 
-        return False, "Ô đã bị chiếm."
-        
-    board[row][col] = symbol
-    winner, win_line = check_winner(board, size)
-    room["last_move"] = (row, col)
-    
+    global _node_counter
+
+    if board_state is None:
+        board_state = [[" " for _ in range(size)] for _ in range(size)]
+        center = size // 2
+        board_state[center][center] = "X"
+        if center + 1 < size:
+            board_state[center][center + 1] = "O"
+
+    # Minimax thuần
+    board_copy_1 = [row[:] for row in board_state]
+    _node_counter = 0
+    start_time = time.time()
+    minimax(
+        board_copy_1, size, depth, -math.inf, math.inf,
+        True, "O", "X", use_alpha_beta=False
+    )
+    pure_nodes = _node_counter
+    pure_time = (time.time() - start_time) * 1000
+
+    # Minimax + Alpha-Beta
+    board_copy_2 = [row[:] for row in board_state]
+    _node_counter = 0
+    start_time = time.time()
+    minimax(
+        board_copy_2, size, depth, -math.inf, math.inf,
+        True, "O", "X", use_alpha_beta=True
+    )
+    ab_nodes = _node_counter
+    ab_time = (time.time() - start_time) * 1000
+
+    return {
+        "depth": int(depth),
+        "pure_nodes": int(pure_nodes),
+        "pure_time": round(pure_time, 2),
+        "ab_nodes": int(ab_nodes),
+        "ab_time": round(ab_time, 2),
+        "node_saved_percent": round((1 - ab_nodes / max(pure_nodes, 1)) * 100, 1),
+    }
+
+def apply_move(room_id, r, c, username):
+    """Apply one online move and persist the complete room state."""
+    room = get_room_info(room_id)
+    if not room:
+        return False, "Phòng không tồn tại!"
+
+    if room.get("game_ended", False):
+        return False, "Ván đấu đã kết thúc!"
+
+    players = room.get("players", {}) or {}
+    if username not in players:
+        return False, "Bạn không phải người chơi trong phòng này!"
+
+    try:
+        r = int(r)
+        c = int(c)
+    except (TypeError, ValueError):
+        return False, "Vị trí nước đi không hợp lệ!"
+
+    size = int(room.get("size", 3))
+    if not (0 <= r < size and 0 <= c < size):
+        return False, "Vị trí nước đi nằm ngoài bàn cờ!"
+
+    my_symbol = players[username]
+    if room.get("turn", "X") != my_symbol:
+        return False, "Chưa tới lượt của bạn!"
+
+    board = room.get("board", [])
+    if len(board) != size or any(len(row) != size for row in board):
+        return False, "Dữ liệu bàn cờ không hợp lệ!"
+
+    if board[r][c] != " ":
+        return False, "Ô này đã được đánh!"
+
+    # Apply the move.
+    board[r][c] = my_symbol
+    room["board"] = board
+    room["last_move"] = (r, c)
+
+    history = room.get("move_history", []) or []
+    history.append({
+        "row": r + 1,
+        "col": c + 1,
+        "symbol": my_symbol,
+        "player": username,
+        "timestamp": time.time(),
+    })
+    room["move_history"] = history
+
+    winner, winning_line = check_winner(board, size)
     if winner:
         room["winner"] = winner
-        room["winning_line"] = win_line
+        room["winning_line"] = winning_line
         room["game_ended"] = True
-        save_room(room_id, room)
-        update_elo_online(room_id, winner)
     elif is_full(board, size):
         room["winner"] = "Draw"
+        room["winning_line"] = []
         room["game_ended"] = True
-        save_room(room_id, room)
-        update_elo_online(room_id, "Draw")
     else:
-        room["turn"] = "O" if symbol == "X" else "X"
-        save_room(room_id, room)
-        
+        room["winner"] = None
+        room["winning_line"] = []
+        room["turn"] = "O" if my_symbol == "X" else "X"
+        room["turn_start_time"] = time.time()
+
+    save_room(room_id, room)
     return True, "Thành công"

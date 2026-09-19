@@ -1,228 +1,329 @@
-# db.py (Đã tích hợp hoàn chỉnh quản lý cột status)
-import sqlite3
 import json
+import sqlite3
 from config import DB_PATH
 
+
 def get_connection():
-    return sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=10, check_same_thread=False)
+    conn.execute("PRAGMA busy_timeout = 10000")
+    conn.execute("PRAGMA foreign_keys = ON")
+    return conn
+
+
+def _add_column_if_missing(cursor, table, column, definition):
+    cursor.execute(f"PRAGMA table_info({table})")
+    columns = {row[1] for row in cursor.fetchall()}
+    if column not in columns:
+        cursor.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+
+
+def _json_load(value, default):
+    if value in (None, ""):
+        return default
+    try:
+        return json.loads(value)
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return default
+
 
 def init_db():
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            username TEXT PRIMARY KEY,
-            elo INTEGER DEFAULT 1000,
-            role TEXT DEFAULT 'user',
-            password TEXT,
-            status TEXT DEFAULT 'active'
-        )
-    ''')
-    cursor.execute("PRAGMA table_info(users)")
-    columns = [col[1] for col in cursor.fetchall()]
-    if 'role' not in columns:
-        cursor.execute("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user'")
-    if 'password' not in columns:
-        cursor.execute("ALTER TABLE users ADD COLUMN password TEXT")
-    if 'status' not in columns:
-        cursor.execute("ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'active'")
+    try:
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                username TEXT PRIMARY KEY,
+                elo INTEGER DEFAULT 1000,
+                role TEXT DEFAULT 'user',
+                password TEXT,
+                status TEXT DEFAULT 'active'
+            )
+        """)
+        _add_column_if_missing(cursor, "users", "role", "TEXT DEFAULT 'user'")
+        _add_column_if_missing(cursor, "users", "password", "TEXT")
+        _add_column_if_missing(cursor, "users", "status", "TEXT DEFAULT 'active'")
 
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS rooms (
-            room_id TEXT PRIMARY KEY,
-            board TEXT,
-            size INTEGER,
-            turn TEXT,
-            winner TEXT,
-            winning_line TEXT,
-            players TEXT,
-            last_score TEXT,
-            game_ended INTEGER DEFAULT 0,
-            elo_already_updated INTEGER DEFAULT 0
-        )
-    ''')
-    cursor.execute("PRAGMA table_info(rooms)")
-    room_columns = [col[1] for col in cursor.fetchall()]
-    if 'elo_already_updated' not in room_columns:
-        cursor.execute("ALTER TABLE rooms ADD COLUMN elo_already_updated INTEGER DEFAULT 0")
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS rooms (
+                room_id TEXT PRIMARY KEY,
+                board TEXT,
+                size INTEGER,
+                turn TEXT,
+                winner TEXT,
+                winning_line TEXT,
+                players TEXT,
+                last_score TEXT,
+                game_ended INTEGER DEFAULT 0,
+                elo_already_updated INTEGER DEFAULT 0,
+                last_move TEXT,
+                move_history TEXT,
+                turn_start_time REAL
+            )
+        """)
+        # Migration for existing caro.db files.
+        _add_column_if_missing(cursor, "rooms", "elo_already_updated", "INTEGER DEFAULT 0")
+        _add_column_if_missing(cursor, "rooms", "last_move", "TEXT")
+        _add_column_if_missing(cursor, "rooms", "move_history", "TEXT")
+        _add_column_if_missing(cursor, "rooms", "turn_start_time", "REAL")
 
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS match_history (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            player TEXT,
-            opponent TEXT,
-            result TEXT,
-            score TEXT,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    conn.commit()
-    conn.close()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS match_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                player TEXT,
+                opponent TEXT,
+                result TEXT,
+                score TEXT,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # Existing rows from older versions get safe defaults.
+        cursor.execute("""
+            UPDATE rooms
+            SET move_history = '[]'
+            WHERE move_history IS NULL OR move_history = ''
+        """)
+        conn.commit()
+    finally:
+        conn.close()
+
 
 def update_user_role(username, new_role):
-    """Cập nhật quyền hạn (role) cho người dùng"""
     conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("UPDATE users SET role = ? WHERE username = ?", (new_role, username))
-    conn.commit()
-    conn.close()
+    try:
+        conn.execute("UPDATE users SET role = ? WHERE username = ?", (new_role, username))
+        conn.commit()
+    finally:
+        conn.close()
+
 
 def delete_user(username):
-    """Xóa tài khoản người dùng khỏi hệ thống"""
     conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM users WHERE username = ?", (username,))
-    conn.commit()
-    conn.close()
+    try:
+        conn.execute("DELETE FROM users WHERE username = ?", (username,))
+        conn.commit()
+    finally:
+        conn.close()
+
 
 def update_user_status(username, status):
-    """Cập nhật trạng thái tài khoản ('active' hoặc 'locked')"""
     conn = get_connection()
-    cursor = conn.cursor()
     try:
-        cursor.execute("UPDATE users SET status = ? WHERE username = ?", (status, username))
-    except sqlite3.OperationalError:
-        cursor.execute("ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'active'")
-        cursor.execute("UPDATE users SET status = ? WHERE username = ?", (status, username))
-    conn.commit()
-    conn.close()
+        _add_column_if_missing(conn.cursor(), "users", "status", "TEXT DEFAULT 'active'")
+        conn.execute("UPDATE users SET status = ? WHERE username = ?", (status, username))
+        conn.commit()
+    finally:
+        conn.close()
+
 
 def get_user(username):
     conn = get_connection()
-    cursor = conn.cursor()
-    
-    # Kiểm tra xem bảng đã có cột status chưa để tránh lỗi truy vấn
-    cursor.execute("PRAGMA table_info(users)")
-    columns = [col[1] for col in cursor.fetchall()]
-    
-    if 'status' in columns:
-        cursor.execute("SELECT username, elo, role, password, status FROM users WHERE username = ?", (username,))
-        row = cursor.fetchone()
+    try:
+        row = conn.execute(
+            "SELECT username, elo, role, password, status FROM users WHERE username = ?",
+            (username,)
+        ).fetchone()
+        if not row:
+            return None
+        return {
+            "username": row[0],
+            "elo": int(row[1] or 1000),
+            "role": row[2] or "user",
+            "password": row[3],
+            "status": row[4] or "active",
+        }
+    finally:
         conn.close()
-        if row:
-            return {'username': row[0], 'elo': row[1], 'role': row[2], 'password': row[3], 'status': row[4] or 'active'}
-    else:
-        cursor.execute("SELECT username, elo, role, password FROM users WHERE username = ?", (username,))
-        row = cursor.fetchone()
-        conn.close()
-        if row:
-            return {'username': row[0], 'elo': row[1], 'role': row[2], 'password': row[3], 'status': 'active'}
-    return None
+
 
 def get_user_elo(username):
     user = get_user(username)
-    return user['elo'] if user else 1000
+    return int(user["elo"]) if user else 1000
+
 
 def get_user_role(username):
     user = get_user(username)
-    return user['role'] if user else 'user'
+    return user["role"] if user else "user"
 
-def create_user(username, elo=1000, role='user', password=None):
+
+def create_user(username, elo=1000, role="user", password=None):
     conn = get_connection()
-    cursor = conn.cursor()
     try:
-        cursor.execute("INSERT INTO users (username, elo, role, password, status) VALUES (?, ?, ?, ?, 'active')",
-                       (username, elo, role, password))
+        conn.execute(
+            "INSERT INTO users (username, elo, role, password, status) VALUES (?, ?, ?, ?, 'active')",
+            (username, elo, role, password),
+        )
         conn.commit()
-        conn.close()
         return True
     except sqlite3.IntegrityError:
-        conn.close()
         return False
+    finally:
+        conn.close()
+
 
 def set_user_elo(username, elo):
     conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("UPDATE users SET elo = ? WHERE username = ?", (elo, username))
-    conn.commit()
-    conn.close()
+    try:
+        conn.execute("UPDATE users SET elo = ? WHERE username = ?", (int(elo), username))
+        conn.commit()
+    finally:
+        conn.close()
+
 
 def get_all_users():
     conn = get_connection()
-    cursor = conn.cursor()
-    
-    cursor.execute("PRAGMA table_info(users)")
-    columns = [col[1] for col in cursor.fetchall()]
-    
-    if 'status' in columns:
-        cursor.execute("SELECT username, elo, role, status FROM users ORDER BY elo DESC")
-        rows = cursor.fetchall()
+    try:
+        rows = conn.execute(
+            "SELECT username, elo, role, status FROM users ORDER BY elo DESC, username ASC"
+        ).fetchall()
+        return [
+            {
+                "username": r[0],
+                "elo": int(r[1] or 1000),
+                "role": r[2] or "user",
+                "status": r[3] or "active",
+            }
+            for r in rows
+        ]
+    finally:
         conn.close()
-        return [{'username': r[0], 'elo': r[1], 'role': r[2], 'status': r[3] or 'active'} for r in rows]
-    else:
-        cursor.execute("SELECT username, elo, role FROM users ORDER BY elo DESC")
-        rows = cursor.fetchall()
-        conn.close()
-        return [{'username': r[0], 'elo': r[1], 'role': r[2], 'status': 'active'} for r in rows]
+
 
 def get_room(room_id):
     conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM rooms WHERE room_id = ?", (room_id,))
-    row = cursor.fetchone()
-    conn.close()
-    if row:
-        return {
-            'room_id': row[0],
-            'board': json.loads(row[1]),
-            'size': row[2],
-            'turn': row[3],
-            'winner': row[4],
-            'winning_line': json.loads(row[5]) if row[5] else [],
-            'players': json.loads(row[6]) if row[6] else {},
-            'last_score': json.loads(row[7]) if row[7] else None,
-            'game_ended': bool(row[8]),
-            'elo_already_updated': bool(row[9]) if len(row) > 9 and row[9] is not None else False
-        }
-    return None
+    try:
+        row = conn.execute(
+            """
+            SELECT room_id, board, size, turn, winner, winning_line, players,
+                   last_score, game_ended, elo_already_updated,
+                   last_move, move_history, turn_start_time
+            FROM rooms WHERE room_id = ?
+            """,
+            (room_id,),
+        ).fetchone()
+    finally:
+        conn.close()
+
+    if not row:
+        return None
+
+    last_move = _json_load(row[10], None)
+    if isinstance(last_move, list) and len(last_move) == 2:
+        last_move = (int(last_move[0]), int(last_move[1]))
+
+    return {
+        "room_id": row[0],
+        "board": _json_load(row[1], []),
+        "size": int(row[2] or 3),
+        "turn": row[3] or "X",
+        "winner": row[4],
+        "winning_line": _json_load(row[5], []),
+        "players": _json_load(row[6], {}),
+        "last_score": _json_load(row[7], None),
+        "game_ended": bool(row[8]),
+        "elo_already_updated": bool(row[9]),
+        "last_move": last_move,
+        "move_history": _json_load(row[11], []),
+        "turn_start_time": row[12],
+    }
+
+
+def get_room_info(room_id):
+    return get_room(room_id)
+
 
 def save_room(room_id, room_data):
+    """Insert/update a room without dropping its persistent history."""
+    board = room_data.get("board", [])
+    size = int(room_data.get("size", len(board) or 3))
+    turn = room_data.get("turn", "X")
+    winner = room_data.get("winner")
+    winning_line = room_data.get("winning_line", []) or []
+    players = room_data.get("players", {}) or {}
+    last_score = room_data.get("last_score")
+    game_ended = 1 if room_data.get("game_ended", False) else 0
+    elo_updated = 1 if room_data.get("elo_already_updated", False) else 0
+    last_move = room_data.get("last_move")
+    move_history = room_data.get("move_history", []) or []
+    turn_start_time = room_data.get("turn_start_time")
+
     conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('''
-        INSERT OR REPLACE INTO rooms (room_id, board, size, turn, winner, winning_line, players, last_score, game_ended, elo_already_updated)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (
-        room_id,
-        json.dumps(room_data['board']),
-        room_data['size'],
-        room_data['turn'],
-        room_data['winner'],
-        json.dumps(room_data['winning_line']),
-        json.dumps(room_data['players']),
-        json.dumps(room_data['last_score']) if room_data['last_score'] is not None else None,
-        1 if room_data['game_ended'] else 0,
-        1 if room_data.get('elo_already_updated') else 0
-    ))
-    conn.commit()
-    conn.close()
+    try:
+        conn.execute("""
+            INSERT INTO rooms (
+                room_id, board, size, turn, winner, winning_line, players,
+                last_score, game_ended, elo_already_updated,
+                last_move, move_history, turn_start_time
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(room_id) DO UPDATE SET
+                board = excluded.board,
+                size = excluded.size,
+                turn = excluded.turn,
+                winner = excluded.winner,
+                winning_line = excluded.winning_line,
+                players = excluded.players,
+                last_score = excluded.last_score,
+                game_ended = excluded.game_ended,
+                elo_already_updated = excluded.elo_already_updated,
+                last_move = excluded.last_move,
+                move_history = excluded.move_history,
+                turn_start_time = excluded.turn_start_time
+        """, (
+            room_id,
+            json.dumps(board, ensure_ascii=False),
+            size,
+            turn,
+            winner,
+            json.dumps(winning_line, ensure_ascii=False),
+            json.dumps(players, ensure_ascii=False),
+            json.dumps(last_score, ensure_ascii=False) if last_score is not None else None,
+            game_ended,
+            elo_updated,
+            json.dumps(last_move, ensure_ascii=False) if last_move is not None else None,
+            json.dumps(move_history, ensure_ascii=False),
+            turn_start_time,
+        ))
+        conn.commit()
+    finally:
+        conn.close()
+
 
 def delete_room(room_id):
     conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM rooms WHERE room_id = ?", (room_id,))
-    conn.commit()
-    conn.close()
+    try:
+        conn.execute("DELETE FROM rooms WHERE room_id = ?", (room_id,))
+        conn.commit()
+    finally:
+        conn.close()
+
 
 def add_match_history(player, opponent, result, score):
     conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('''
-        INSERT INTO match_history (player, opponent, result, score)
-        VALUES (?, ?, ?, ?)
-    ''', (player, opponent, result, score))
-    conn.commit()
-    conn.close()
+    try:
+        conn.execute(
+            "INSERT INTO match_history (player, opponent, result, score) VALUES (?, ?, ?, ?)",
+            (player, opponent, result, score),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
 
 def get_recent_matches(limit=10):
     conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('''
-        SELECT player, opponent, result, score, timestamp
-        FROM match_history
-        ORDER BY timestamp DESC
-        LIMIT ?
-    ''', (limit,))
-    rows = cursor.fetchall()
-    conn.close()
-    return [{'player': r[0], 'opponent': r[1], 'result': r[2], 'score': r[3], 'timestamp': r[4]} for r in rows]
+    try:
+        rows = conn.execute(
+            """
+            SELECT player, opponent, result, score, timestamp
+            FROM match_history
+            ORDER BY timestamp DESC, id DESC
+            LIMIT ?
+            """,
+            (int(limit),),
+        ).fetchall()
+        return [
+            {"player": r[0], "opponent": r[1], "result": r[2], "score": r[3], "timestamp": r[4]}
+            for r in rows
+        ]
+    finally:
+        conn.close()

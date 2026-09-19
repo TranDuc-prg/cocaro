@@ -49,7 +49,7 @@ def render_register_page():
         </style>
     """, unsafe_allow_html=True)
 
-    st.markdown('<div class="main-banner">🪵 Cờ Caro Gỗ Trực Tuyến 🪵</div>', unsafe_allow_html=True)
+    st.markdown('<div class="main-banner">🪵 Cờ Caro Trực Tuyến 🪵</div>', unsafe_allow_html=True)
     st.markdown("<p style='text-align: center; color: #7f634d; font-size: 16px; margin-bottom: 30px;'>Tạo tài khoản ngay để lưu lại thành tích và điểm ELO của bạn</p>", unsafe_allow_html=True)
 
     _, col_reg, _ = st.columns([1, 1.3, 1])

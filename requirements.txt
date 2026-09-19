@@ -2,3 +2,4 @@ streamlit
 streamlit-image-coordinates
 streamlit-autorefresh
 Pillow
+pandas

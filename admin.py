@@ -1,251 +1,711 @@
-# admin.py (Cập nhật giao diện biểu đồ thống kê trực quan và tối ưu)
-import streamlit as st
+import sqlite3
+from datetime import datetime
+
 import pandas as pd
-from db import get_all_users, set_user_elo, get_connection, update_user_role, delete_user, update_user_status
+import streamlit as st
+
+from db import (
+    get_all_users,
+    set_user_elo,
+    get_connection,
+    update_user_role,
+    delete_user,
+    update_user_status,
+)
+from config import DB_PATH
+
+
+def _ensure_admin_tables():
+    """Create/migrate tables/columns used by the admin dashboard."""
+    conn = sqlite3.connect(DB_PATH, timeout=10, check_same_thread=False)
+    conn.execute("PRAGMA busy_timeout = 10000")
+    try:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS game_feedback (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT NOT NULL,
+                game_mode TEXT NOT NULL,
+                room_id TEXT,
+                result TEXT,
+                rating INTEGER NOT NULL CHECK(rating BETWEEN 1 AND 5),
+                comment TEXT,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+
+        cols = {row[1] for row in conn.execute("PRAGMA table_info(game_feedback)").fetchall()}
+        if "admin_reply" not in cols:
+            conn.execute("ALTER TABLE game_feedback ADD COLUMN admin_reply TEXT")
+        if "status" not in cols:
+            conn.execute("ALTER TABLE game_feedback ADD COLUMN status TEXT DEFAULT 'new'")
+        if "replied_at" not in cols:
+            conn.execute("ALTER TABLE game_feedback ADD COLUMN replied_at TEXT")
+
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _feedback_rows(where_sql="", params=()):
+    _ensure_admin_tables()
+    conn = sqlite3.connect(DB_PATH, timeout=10, check_same_thread=False)
+    conn.execute("PRAGMA busy_timeout = 10000")
+    try:
+        query = """
+            SELECT id, username, game_mode, room_id, result, rating,
+                   comment, created_at, admin_reply, status, replied_at
+            FROM game_feedback
+        """
+        if where_sql:
+            query += " WHERE " + where_sql
+        query += " ORDER BY id DESC"
+        rows = conn.execute(query, params).fetchall()
+        return rows
+    finally:
+        conn.close()
+
+
+def _update_feedback(feedback_id, status=None, admin_reply=None):
+    _ensure_admin_tables()
+    conn = sqlite3.connect(DB_PATH, timeout=10, check_same_thread=False)
+    conn.execute("PRAGMA busy_timeout = 10000")
+    try:
+        current = conn.execute(
+            "SELECT status, admin_reply FROM game_feedback WHERE id = ?",
+            (int(feedback_id),),
+        ).fetchone()
+        if not current:
+            return False
+
+        new_status = status if status is not None else current[0]
+        new_reply = admin_reply if admin_reply is not None else current[1]
+        replied_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S") if admin_reply is not None else None
+
+        conn.execute(
+            """
+            UPDATE game_feedback
+            SET status = ?, admin_reply = ?,
+                replied_at = CASE
+                    WHEN ? IS NOT NULL THEN ?
+                    ELSE replied_at
+                END
+            WHERE id = ?
+            """,
+            (new_status, new_reply, replied_at, replied_at, int(feedback_id)),
+        )
+        conn.commit()
+        return True
+    finally:
+        conn.close()
+
+
+def _delete_feedback(feedback_id):
+    _ensure_admin_tables()
+    conn = sqlite3.connect(DB_PATH, timeout=10, check_same_thread=False)
+    conn.execute("PRAGMA busy_timeout = 10000")
+    try:
+        conn.execute("DELETE FROM game_feedback WHERE id = ?", (int(feedback_id),))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _match_rows(player_filter="", result_filter="Tất cả", limit=300):
+    conn = get_connection()
+    try:
+        query = """
+            SELECT id, player, opponent, result, score, timestamp
+            FROM match_history
+            WHERE 1=1
+        """
+        params = []
+        if player_filter.strip():
+            query += " AND (player LIKE ? OR opponent LIKE ?)"
+            token = f"%{player_filter.strip()}%"
+            params.extend([token, token])
+        if result_filter != "Tất cả":
+            query += " AND result = ?"
+            params.append(result_filter)
+        query += " ORDER BY timestamp DESC, id DESC LIMIT ?"
+        params.append(int(limit))
+        return conn.execute(query, params).fetchall()
+    finally:
+        conn.close()
+
+
+def _delete_match(match_id):
+    conn = get_connection()
+    try:
+        conn.execute("DELETE FROM match_history WHERE id = ?", (int(match_id),))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _delete_all_matches():
+    conn = get_connection()
+    try:
+        conn.execute("DELETE FROM match_history")
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _room_rows():
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            """
+            SELECT room_id, size, turn, winner, players,
+                   game_ended, move_history
+            FROM rooms
+            ORDER BY room_id ASC
+            """
+        ).fetchall()
+        return rows
+    finally:
+        conn.close()
+
+
+def _delete_room(room_id):
+    conn = get_connection()
+    try:
+        conn.execute("DELETE FROM rooms WHERE room_id = ?", (room_id,))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _system_overview(users):
+    conn = get_connection()
+    try:
+        total_users = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+        locked_users = conn.execute(
+            "SELECT COUNT(*) FROM users WHERE COALESCE(status, 'active') = 'locked'"
+        ).fetchone()[0]
+        total_matches = conn.execute("SELECT COUNT(*) FROM match_history").fetchone()[0]
+        total_rooms = conn.execute("SELECT COUNT(*) FROM rooms").fetchone()[0]
+        finished_rooms = conn.execute("SELECT COUNT(*) FROM rooms WHERE game_ended = 1").fetchone()[0]
+        return total_users, locked_users, total_matches, total_rooms, finished_rooms
+    finally:
+        conn.close()
+
 
 def render_admin_page():
-    st.markdown("""
+    _ensure_admin_tables()
+
+    st.markdown(
+        """
         <style>
         .admin-header {
-            background: linear-gradient(135deg, #5c3a21, #8d5b4c);
-            padding: 30px;
+            background: linear-gradient(135deg, #4e2f1d, #8b5e3c);
+            padding: 28px;
             border-radius: 16px;
             color: white;
             text-align: center;
-            box-shadow: 0 10px 25px rgba(92, 58, 33, 0.2);
-            margin-bottom: 25px;
+            box-shadow: 0 10px 25px rgba(78, 47, 29, 0.20);
+            margin-bottom: 20px;
         }
-        .admin-header h1 {
-            margin: 0;
-            font-size: 30px;
-            font-weight: 800;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
-        }
-        .admin-header p {
-            margin: 8px 0 0 0;
-            font-size: 15px;
-            opacity: 0.9;
-        }
-        .metric-container {
-            background: linear-gradient(135deg, #ffffff, #fdfaf6);
-            padding: 20px;
+        .admin-header h1 { margin: 0; font-size: 30px; font-weight: 800; }
+        .admin-header p { margin: 8px 0 0 0; font-size: 14px; opacity: .92; }
+        .metric-card {
+            background: linear-gradient(135deg, #ffffff, #fdf8f2);
+            padding: 18px;
             border-radius: 14px;
-            border: 1px solid #e6d7c3;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+            border: 1px solid #eadac7;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
             text-align: center;
         }
-        .admin-card {
-            background: #ffffff;
-            padding: 18px 22px;
-            border-radius: 14px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.04);
-            border: 1px solid #eedecc;
-            margin-bottom: 12px;
-        }
-        .role-badge-admin {
-            background-color: #ffe8d6; color: #b95c2d; padding: 3px 10px; border-radius: 8px; font-size: 12px; font-weight: 700; border: 1px solid #f3cbb0;
-        }
-        .role-badge-user {
-            background-color: #eaf4f4; color: #2b7a78; padding: 3px 10px; border-radius: 8px; font-size: 12px; font-weight: 700; border: 1px solid #c6e2e2;
-        }
-        .status-active {
-            background-color: #e1f5fe; color: #0277bd; padding: 3px 10px; border-radius: 8px; font-size: 12px; font-weight: 700; border: 1px solid #b3e5fc;
-        }
-        .status-locked {
-            background-color: #ffebee; color: #c62828; padding: 3px 10px; border-radius: 8px; font-size: 12px; font-weight: 700; border: 1px solid #ffcdd2;
-        }
+        .section-title { font-size: 20px; font-weight: 800; margin: 8px 0 14px 0; }
         </style>
-    """, unsafe_allow_html=True)
+        """,
+        unsafe_allow_html=True,
+    )
 
-    st.markdown("""
+    st.markdown(
+        """
         <div class="admin-header">
-            <h1>👑 Bảng Điều Hành Quản Trị Hệ Thống</h1>
-            <p>Kiểm soát trạng thái hoạt động, khóa/mở khóa tài khoản, phân quyền và tinh chỉnh Elo</p>
+            <h1>👑 BẢNG ĐIỀU HÀNH QUẢN TRỊ</h1>
+            <p>Quản lý người dùng, Elo, phòng đấu, lịch sử trận, đánh giá và thống kê hệ thống</p>
         </div>
-    """, unsafe_allow_html=True)
-
-    tab1, tab2, tab3 = st.tabs(["👥 Quản lý Elo & Trạng Thái", "🛡️ Phân Quyền & Khóa/Mở Khóa", "📊 Thống Kê & Biểu Đồ"])
+        """,
+        unsafe_allow_html=True,
+    )
 
     users = get_all_users()
+    total_users, locked_users, total_matches, total_rooms, finished_rooms = _system_overview(users)
 
-    with tab1:
-        st.markdown("### 📋 Danh Sách Thành Viên & Chỉnh Sửa Elo")
-        search_query = st.text_input("🔍 Tìm kiếm tên tài khoản", placeholder="Nhập tên đăng nhập cần tìm...")
-        st.markdown("<div style='margin-bottom: 10px;'></div>", unsafe_allow_html=True)
+    feedback_all = _feedback_rows()
+    feedback_ratings = [int(r[5]) for r in feedback_all]
+    avg_rating = sum(feedback_ratings) / len(feedback_ratings) if feedback_ratings else 0
 
-        for u in users:
-            if search_query and search_query.lower() not in u['username'].lower():
-                continue
+    st.markdown("### 📌 Tổng quan hệ thống")
+    c1, c2, c3, c4, c5 = st.columns(5)
+    metrics = [
+        (c1, "👥 Người dùng", total_users),
+        (c2, "🔒 Tài khoản khóa", locked_users),
+        (c3, "🎮 Tổng trận", total_matches),
+        (c4, "🏠 Phòng hiện có", total_rooms),
+        (c5, "⭐ Đánh giá TB", f"{avg_rating:.1f}/5" if feedback_ratings else "Chưa có"),
+    ]
+    for col, label, value in metrics:
+        with col:
+            st.markdown(
+                f"<div class='metric-card'><div style='font-size:13px;color:#7c6755'>{label}</div>"
+                f"<div style='font-size:26px;font-weight:800;color:#4e2f1d;margin-top:6px'>{value}</div></div>",
+                unsafe_allow_html=True,
+            )
 
-            status = u.get('status', 'active')
-            
-            with st.container():
-                st.markdown('<div class="admin-card">', unsafe_allow_html=True)
-                col1, col2, col3, col4 = st.columns([2, 1.2, 1.5, 1.2])
-                
-                with col1:
-                    st.markdown(f"<div style='font-size: 16px; font-weight: bold; color: #4a3525;'>👤 {u['username']}</div>", unsafe_allow_html=True)
-                    role_class = "role-badge-admin" if u['role'] == 'admin' else "role-badge-user"
-                    status_class = "status-active" if status == 'active' else "status-locked"
-                    status_text = "🟢 Đang hoạt động" if status == 'active' else "🔴 Đã khóa"
-                    
-                    st.markdown(f"Quyền: <span class='{role_class}'>{u['role'].upper()}</span> | Trạng thái: <span class='{status_class}'>{status_text}</span>", unsafe_allow_html=True)
-                
-                with col2:
-                    st.markdown(f"<div style='margin-top: 5px; color: #665; font-size: 14px;'>Elo: <b>{u['elo']}</b></div>", unsafe_allow_html=True)
-                
-                with col3:
-                    new_elo = st.number_input("Elo mới", value=int(u['elo']), key=f"elo_{u['username']}", label_visibility="collapsed")
-                
-                with col4:
-                    if st.button("💾 Lưu Elo", key=f"btn_elo_{u['username']}", use_container_width=True):
-                        set_user_elo(u['username'], int(new_elo))
-                        st.success(f"Đã cập nhật Elo cho {u['username']}!")
-                        st.rerun()
-                        
-                st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
 
-    with tab2:
-        st.markdown("### ⚙️ Quản Trị Phân Quyền & Trạng Thái Tài Khoản (Khóa/Mở)")
-        st.info("💡 Bạn có thể khóa tài khoản vi phạm (người bị khóa sẽ không thể đăng nhập) hoặc phân lại quyền Admin/User tại đây.")
+    tabs = st.tabs([
+        "📊 Dashboard",
+        "👥 Người dùng",
+        "⭐ Quản lý đánh giá",
+        "📜 Lịch sử trận",
+        "🏠 Quản lý phòng",
+        "🏆 Elo & Thống kê",
+    ])
 
-        for u in users:
-            is_self = (u['username'] == st.session_state.get('current_user'))
-            current_status = u.get('status', 'active')
+    with tabs[0]:
+        st.markdown("<div class='section-title'>📊 Dashboard quản trị</div>", unsafe_allow_html=True)
 
-            with st.expander(f"👤 Tài khoản: {u['username']} (Quyền: {u['role'].upper()} | Trạng thái: {'Đang hoạt động' if current_status == 'active' else 'Đã bị khóa'})"):
-                col_a, col_b, col_c = st.columns(3)
-                
-                with col_a:
-                    st.markdown("#### Đổi quyền hạn")
-                    new_role_val = st.selectbox(
-                        "Chọn quyền mới", 
-                        options=["user", "admin"], 
-                        index=0 if u['role'] == 'user' else 1,
-                        key=f"select_role_{u['username']}"
+        col_a, col_b = st.columns(2)
+        with col_a:
+            st.markdown("#### Trạng thái tài khoản")
+            active = max(0, total_users - locked_users)
+            status_df = pd.DataFrame(
+                {"Số lượng": [active, locked_users]},
+                index=["Đang hoạt động", "Đã khóa"],
+            )
+            st.bar_chart(status_df)
+
+        with col_b:
+            st.markdown("#### Phân bố đánh giá")
+            rating_counts = {star: 0 for star in range(1, 6)}
+            for rating in feedback_ratings:
+                rating_counts[rating] += 1
+            rating_df = pd.DataFrame(
+                {"Số lượt": list(rating_counts.values())},
+                index=[f"{s} sao" for s in range(1, 6)],
+            )
+            st.bar_chart(rating_df)
+
+        st.markdown("#### 🕹️ Tình trạng phòng Online")
+        rooms = _room_rows()
+        if rooms:
+            room_stats = []
+            for room_id, size, turn, winner, players_json, game_ended, move_history_json in rooms:
+                player_count = 0
+                move_count = 0
+                try:
+                    import json
+                    player_count = len(json.loads(players_json or "{}"))
+                    move_count = len(json.loads(move_history_json or "[]"))
+                except Exception:
+                    pass
+                room_stats.append(
+                    {
+                        "Phòng": room_id,
+                        "Bàn": f"{size}x{size}",
+                        "Người chơi": player_count,
+                        "Nước đi": move_count,
+                        "Lượt": turn,
+                        "Trạng thái": "Đã kết thúc" if game_ended else "Đang chơi",
+                        "Kết quả": winner or "-",
+                    }
+                )
+            st.dataframe(pd.DataFrame(room_stats), use_container_width=True, hide_index=True)
+        else:
+            st.info("Chưa có phòng Online.")
+
+        st.markdown("#### 🕐 Hoạt động gần đây")
+        matches = _match_rows(limit=10)
+        if matches:
+            df = pd.DataFrame(
+                matches,
+                columns=["ID", "Người chơi", "Đối thủ", "Kết quả", "Điểm", "Thời gian"],
+            )
+            st.dataframe(df, use_container_width=True, hide_index=True)
+        else:
+            st.info("Chưa có lịch sử trận đấu.")
+
+        st.markdown("#### 💾 Sao lưu dữ liệu")
+        try:
+            with open(DB_PATH, "rb") as db_file:
+                db_bytes = db_file.read()
+            st.download_button(
+                "📥 Tải xuống caro.db",
+                data=db_bytes,
+                file_name="caro_backup.db",
+                mime="application/x-sqlite3",
+                use_container_width=True,
+            )
+            st.caption("Bản sao lưu chứa người dùng, Elo, lịch sử trận, phòng và đánh giá.")
+        except OSError as exc:
+            st.warning(f"Không thể tạo bản sao lưu: {exc}")
+
+    with tabs[1]:
+        st.markdown("<div class='section-title'>👥 Quản lý người dùng</div>", unsafe_allow_html=True)
+        search_query = st.text_input("🔍 Tìm tài khoản", placeholder="Nhập username...", key="admin_user_search")
+        filtered_users = [u for u in users if not search_query or search_query.lower() in u["username"].lower()]
+
+        for u in filtered_users:
+            username = u["username"]
+            status = u.get("status", "active")
+            is_self = username == st.session_state.get("current_user")
+
+            with st.expander(
+                f"👤 {username} | Elo {u['elo']} | {u['role'].upper()} | "
+                f"{'🟢 Active' if status == 'active' else '🔴 Locked'}"
+            ):
+                c1, c2, c3, c4 = st.columns(4)
+                with c1:
+                    new_elo = st.number_input(
+                        "Elo",
+                        min_value=0,
+                        value=int(u["elo"]),
+                        step=10,
+                        key=f"admin_elo_{username}",
                     )
-                    if st.button("🔄 Cập nhật quyền", key=f"btn_role_{u['username']}"):
-                        if is_self and new_role_val == 'user':
-                            st.warning("⚠️ Không thể tự hạ quyền admin của chính mình!")
+                    if st.button("💾 Lưu Elo", key=f"save_elo_{username}", use_container_width=True):
+                        set_user_elo(username, int(new_elo))
+                        st.success(f"Đã cập nhật Elo cho {username}.")
+                        st.rerun()
+
+                with c2:
+                    role = st.selectbox(
+                        "Quyền",
+                        ["user", "admin"],
+                        index=0 if u["role"] == "user" else 1,
+                        key=f"role_{username}",
+                    )
+                    if st.button("🔄 Cập nhật quyền", key=f"save_role_{username}", use_container_width=True):
+                        if is_self and role == "user":
+                            st.warning("Không thể tự hạ quyền tài khoản admin đang đăng nhập.")
                         else:
-                            update_user_role(u['username'], new_role_val)
-                            st.success(f"Đã chuyển quyền của {u['username']} thành {new_role_val}!")
+                            update_user_role(username, role)
+                            st.success(f"Đã cập nhật quyền {username} → {role}.")
                             st.rerun()
 
-                with col_b:
-                    st.markdown("#### Trạng thái tài khoản")
-                    if is_self:
-                        st.info("🔒 Không thể khóa tài khoản chính bạn đang đăng nhập.")
+                with c3:
+                    if status == "active":
+                        if is_self:
+                            st.info("Không thể tự khóa tài khoản hiện tại.")
+                        elif st.button("🔒 Khóa", key=f"lock_{username}", use_container_width=True):
+                            update_user_status(username, "locked")
+                            st.success(f"Đã khóa {username}.")
+                            st.rerun()
                     else:
-                        normalized_status = str(current_status).strip().lower()
-                        if normalized_status == 'active':
-                            if st.button("🔒 Khóa tài khoản", key=f"btn_lock_{u['username']}", type="secondary"):
-                                update_user_status(u['username'], 'locked')
-                                st.warning(f"Đã khóa tài khoản {u['username']} thành công!")
-                                st.rerun()
-                        else:
-                            if st.button("🔓 Mở khóa tài khoản", key=f"btn_unlock_{u['username']}", type="primary"):
-                                update_user_status(u['username'], 'active')
-                                st.success(f"Đã mở khóa cho tài khoản {u['username']}!")
-                                st.rerun()
+                        if st.button("🔓 Mở khóa", key=f"unlock_{username}", use_container_width=True, type="primary"):
+                            update_user_status(username, "active")
+                            st.success(f"Đã mở khóa {username}.")
+                            st.rerun()
 
-                with col_c:
-                    st.markdown("#### Xóa vĩnh viễn")
+                with c4:
                     if is_self:
-                        st.write("---")
+                        st.caption("Tài khoản hiện tại")
                     else:
-                        confirm_delete = st.checkbox("Xác nhận xóa", key=f"chk_del_{u['username']}")
-                        if st.button("🗑️ Xóa vĩnh viễn", key=f"btn_del_{u['username']}"):
-                            if confirm_delete:
-                                delete_user(u['username'])
-                                st.success(f"Đã xóa tài khoản {u['username']}!")
+                        confirm = st.checkbox("Xác nhận xóa", key=f"confirm_del_{username}")
+                        if st.button("🗑️ Xóa", key=f"delete_{username}", use_container_width=True):
+                            if confirm:
+                                delete_user(username)
+                                st.success(f"Đã xóa {username}.")
                                 st.rerun()
                             else:
-                                st.warning("Hãy tích chọn xác nhận trước.")
+                                st.warning("Hãy xác nhận xóa trước.")
 
-    with tab3:
-        st.markdown("### 📈 Thống Kê & Phân Tích Hệ Thống")
+        st.markdown("#### 📈 Thống kê từng người chơi")
+        user_stats = []
         conn = get_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute("SELECT COUNT(*) FROM users")
-        total_users = cursor.fetchone()[0]
-        
         try:
-            cursor.execute("SELECT COUNT(*) FROM users WHERE status = 'locked'")
-            total_locked = cursor.fetchone()[0]
-        except:
-            total_locked = 0
-            
-        total_active = total_users - total_locked
+            for u in users:
+                row = conn.execute(
+                    """
+                    SELECT
+                        SUM(CASE WHEN result IN ('Thắng', 'Thắng (Quá giờ)') THEN 1 ELSE 0 END),
+                        SUM(CASE WHEN result LIKE 'Thua%' THEN 1 ELSE 0 END),
+                        SUM(CASE WHEN result = 'Hòa' THEN 1 ELSE 0 END),
+                        COUNT(*)
+                    FROM match_history
+                    WHERE player = ?
+                    """,
+                    (u["username"],),
+                ).fetchone()
+                wins = int(row[0] or 0)
+                losses = int(row[1] or 0)
+                draws = int(row[2] or 0)
+                total = int(row[3] or 0)
+                user_stats.append(
+                    {
+                        "Username": u["username"],
+                        "Elo": u["elo"],
+                        "Tổng trận": total,
+                        "Thắng": wins,
+                        "Thua": losses,
+                        "Hòa": draws,
+                        "Tỷ lệ thắng": f"{(wins / total * 100):.1f}%" if total else "0.0%",
+                    }
+                )
+        finally:
+            conn.close()
+        user_stats_df = pd.DataFrame(user_stats)
+        st.dataframe(user_stats_df, use_container_width=True, hide_index=True)
+        st.download_button(
+            "📥 Xuất thống kê người chơi CSV",
+            data=user_stats_df.to_csv(index=False).encode("utf-8-sig"),
+            file_name="player_statistics.csv",
+            mime="text/csv",
+            use_container_width=True,
+        )
 
-        cursor.execute("SELECT COUNT(*) FROM match_history")
-        total_matches = cursor.fetchone()[0]
-        
-        conn.close()
+    with tabs[2]:
+        st.markdown("<div class='section-title'>⭐ Quản lý đánh giá người chơi</div>", unsafe_allow_html=True)
 
-        c1, c2, c3, c4 = st.columns(4)
-        with c1:
-            st.markdown(f"""
-                <div class="metric-container">
-                    <h5 style="color: #7f634d; margin: 0 0 5px 0;">Đang hoạt động</h5>
-                    <h3 style="color: #2b7a78; margin: 0;">🟢 {total_active}</h3>
-                </div>
-            """, unsafe_allow_html=True)
-        with c2:
-            st.markdown(f"""
-                <div class="metric-container">
-                    <h5 style="color: #7f634d; margin: 0 0 5px 0;">Đang bị khóa</h5>
-                    <h3 style="color: #c62828; margin: 0;">🔴 {total_locked}</h3>
-                </div>
-            """, unsafe_allow_html=True)
-        with c3:
-            st.markdown(f"""
-                <div class="metric-container">
-                    <h5 style="color: #7f634d; margin: 0 0 5px 0;">Tổng ván đấu</h5>
-                    <h3 style="color: #5c3a21; margin: 0;">🎮 {total_matches}</h3>
-                </div>
-            """, unsafe_allow_html=True)
-        with c4:
-            st.markdown(f"""
-                <div class="metric-container">
-                    <h5 style="color: #7f634d; margin: 0 0 5px 0;">Tổng số user</h5>
-                    <h3 style="color: #5c3a21; margin: 0;">👥 {total_users}</h3>
-                </div>
-            """, unsafe_allow_html=True)
+        ratings = [1, 2, 3, 4, 5]
+        status_values = ["Tất cả", "new", "reviewed", "hidden"]
+        fc1, fc2, fc3 = st.columns(3)
+        with fc1:
+            rating_filter = st.selectbox("Lọc số sao", ["Tất cả", *ratings], key="feedback_rating_filter")
+        with fc2:
+            status_filter = st.selectbox("Lọc trạng thái", status_values, key="feedback_status_filter")
+        with fc3:
+            feedback_search = st.text_input("🔍 Tìm username / nhận xét", key="feedback_search")
 
-        st.markdown("<div style='margin-top: 25px;'></div>", unsafe_allow_html=True)
+        clauses = []
+        params = []
+        if rating_filter != "Tất cả":
+            clauses.append("rating = ?")
+            params.append(int(rating_filter))
+        if status_filter != "Tất cả":
+            clauses.append("status = ?")
+            params.append(status_filter)
+        if feedback_search.strip():
+            clauses.append("(username LIKE ? OR comment LIKE ? OR admin_reply LIKE ?)")
+            token = f"%{feedback_search.strip()}%"
+            params.extend([token, token, token])
 
+        feedback_rows = _feedback_rows(" AND ".join(clauses), tuple(params))
+
+        total_fb = len(feedback_all)
+        avg_fb = sum(int(x[5]) for x in feedback_all) / total_fb if total_fb else 0
+        five = sum(1 for x in feedback_all if int(x[5]) == 5)
+        four = sum(1 for x in feedback_all if int(x[5]) == 4)
+        low = sum(1 for x in feedback_all if int(x[5]) <= 2)
+        new_fb = sum(1 for x in feedback_all if (x[9] or 'new') == 'new')
+        reviewed_fb = sum(1 for x in feedback_all if (x[9] or 'new') == 'reviewed')
+        hidden_fb = sum(1 for x in feedback_all if (x[9] or 'new') == 'hidden')
+
+        m1, m2, m3, m4, m5 = st.columns(5)
+        m1.metric("Tổng đánh giá", total_fb)
+        m2.metric("Điểm TB", f"{avg_fb:.2f}/5" if total_fb else "0/5")
+        m3.metric("5 ⭐", five)
+        m4.metric("≤ 2 ⭐", low)
+        m5.metric("🆕 Chờ xử lý", new_fb)
+
+        st.caption(f"Đã xem: {reviewed_fb} · Đã ẩn: {hidden_fb}")
+        st.markdown("---")
+        if not feedback_rows:
+            st.info("Không có đánh giá phù hợp bộ lọc.")
+        else:
+            for row in feedback_rows:
+                fid, username, game_mode, room_id, result, rating, comment, created_at, admin_reply, status, replied_at = row
+                title = f"#{fid} | {username} | {'⭐' * int(rating)} | {status}"
+                with st.expander(title):
+                    a, b, c = st.columns([1.2, 1.2, 1])
+                    a.write(f"**Chế độ:** {game_mode}")
+                    b.write(f"**Kết quả:** {result or '-'}")
+                    c.write(f"**Phòng:** {room_id or '-'}")
+                    st.caption(f"Gửi lúc: {created_at}")
+
+                    st.markdown("**📝 Nhận xét của User**")
+                    st.write(comment or "(Không có nhận xét)")
+
+                    current_status = st.selectbox(
+                        "Trạng thái đánh giá",
+                        ["new", "reviewed", "hidden"],
+                        index=["new", "reviewed", "hidden"].index(status if status in {"new", "reviewed", "hidden"} else "new"),
+                        key=f"feedback_status_{fid}",
+                    )
+                    reply = st.text_area(
+                        "💬 Phản hồi của Admin",
+                        value=admin_reply or "",
+                        max_chars=500,
+                        key=f"feedback_reply_{fid}",
+                        placeholder="Ví dụ: Cảm ơn bạn đã góp ý. Chúng tôi sẽ cải thiện trải nghiệm...",
+                    )
+                    save_reply_col, hide_col, delete_col = st.columns(3)
+                    with save_reply_col:
+                        if st.button("💾 Lưu phản hồi", key=f"fb_save_{fid}", use_container_width=True, type="primary"):
+                            _update_feedback(fid, status=current_status, admin_reply=reply.strip())
+                            st.success("Đã cập nhật đánh giá.")
+                            st.rerun()
+                    with hide_col:
+                        if st.button("🙈 Ẩn đánh giá", key=f"fb_hide_{fid}", use_container_width=True):
+                            _update_feedback(fid, status="hidden")
+                            st.success("Đã ẩn đánh giá.")
+                            st.rerun()
+                    with delete_col:
+                        if st.button("🗑️ Xóa đánh giá", key=f"fb_delete_{fid}", use_container_width=True):
+                            _delete_feedback(fid)
+                            st.success("Đã xóa đánh giá.")
+                            st.rerun()
+
+            st.download_button(
+                "📥 Xuất danh sách đánh giá CSV",
+                data=pd.DataFrame(
+                    feedback_rows,
+                    columns=[
+                        "ID", "Username", "Chế độ", "Phòng", "Kết quả", "Rating",
+                        "Comment", "Created At", "Admin Reply", "Status", "Replied At"
+                    ],
+                ).to_csv(index=False).encode("utf-8-sig"),
+                file_name="feedback_export.csv",
+                mime="text/csv",
+                use_container_width=True,
+            )
+
+    with tabs[3]:
+        st.markdown("<div class='section-title'>📜 Quản lý lịch sử trận đấu</div>", unsafe_allow_html=True)
+        mc1, mc2 = st.columns(2)
+        with mc1:
+            player_filter = st.text_input("🔍 Tìm người chơi / đối thủ", key="match_player_filter")
+        with mc2:
+            result_filter = st.selectbox(
+                "Kết quả",
+                ["Tất cả", "Thắng", "Thua", "Hòa", "Thắng (Quá giờ)"],
+                key="match_result_filter",
+            )
+
+        match_rows = _match_rows(player_filter, result_filter, limit=500)
+        if match_rows:
+            df_match = pd.DataFrame(
+                match_rows,
+                columns=["ID", "Người chơi", "Đối thủ", "Kết quả", "Điểm", "Thời gian"],
+            )
+            st.dataframe(df_match, use_container_width=True, hide_index=True)
+
+            delete_id = st.number_input("ID trận cần xóa", min_value=0, step=1, value=0, key="match_delete_id")
+            d1, d2 = st.columns(2)
+            with d1:
+                if st.button("🗑️ Xóa trận theo ID", use_container_width=True):
+                    if delete_id > 0:
+                        _delete_match(delete_id)
+                        st.success(f"Đã xóa trận #{int(delete_id)}.")
+                        st.rerun()
+                    else:
+                        st.warning("Nhập ID hợp lệ.")
+            with d2:
+                confirm_clear = st.checkbox("Tôi hiểu thao tác này xóa toàn bộ lịch sử", key="confirm_clear_matches")
+                if st.button("⚠️ Xóa toàn bộ lịch sử", use_container_width=True):
+                    if confirm_clear:
+                        _delete_all_matches()
+                        st.success("Đã xóa toàn bộ lịch sử trận đấu.")
+                        st.rerun()
+                    else:
+                        st.warning("Hãy xác nhận trước khi xóa toàn bộ.")
+
+            st.download_button(
+                "📥 Xuất lịch sử trận đấu CSV",
+                data=df_match.to_csv(index=False).encode("utf-8-sig"),
+                file_name="match_history_export.csv",
+                mime="text/csv",
+                use_container_width=True,
+            )
+        else:
+            st.info("Không có lịch sử trận đấu phù hợp.")
+
+    with tabs[4]:
+        st.markdown("<div class='section-title'>🏠 Quản lý phòng Online</div>", unsafe_allow_html=True)
+        rooms = _room_rows()
+        if not rooms:
+            st.info("Không có phòng nào trong hệ thống.")
+        else:
+            import json
+
+            room_table = []
+            for room_id, size, turn, winner, players_json, game_ended, move_history_json in rooms:
+                try:
+                    players = json.loads(players_json or "{}")
+                    move_history = json.loads(move_history_json or "[]")
+                except Exception:
+                    players, move_history = {}, []
+                room_table.append(
+                    {
+                        "Phòng": room_id,
+                        "Bàn cờ": f"{size}x{size}",
+                        "Người chơi": ", ".join(players.keys()) if players else "-",
+                        "Số người": len(players),
+                        "Số nước": len(move_history),
+                        "Lượt": turn,
+                        "Trạng thái": "Kết thúc" if game_ended else "Đang chơi",
+                        "Người thắng": winner or "-",
+                    }
+                )
+
+            st.dataframe(pd.DataFrame(room_table), use_container_width=True, hide_index=True)
+            st.markdown("#### 🧹 Dọn phòng")
+            room_ids = [r["Phòng"] for r in room_table]
+            selected_room = st.selectbox("Chọn phòng", room_ids, key="admin_room_select")
+            confirm_room_delete = st.checkbox("Xác nhận xóa phòng này", key="admin_room_confirm")
+            if st.button("🗑️ Xóa phòng", use_container_width=True):
+                if confirm_room_delete:
+                    _delete_room(selected_room)
+                    st.success(f"Đã xóa phòng {selected_room}.")
+                    st.rerun()
+                else:
+                    st.warning("Hãy xác nhận trước khi xóa phòng.")
+    with tabs[5]:
+        st.markdown("<div class='section-title'>🏆 Elo & Thống kê người chơi</div>", unsafe_allow_html=True)
+        top_n = st.radio("Hiển thị", [10, 20], horizontal=True, index=0, key="leaderboard_top_n")
+        leaderboard = sorted(users, key=lambda x: (-int(x["elo"]), x["username"]))[:top_n]
+
+        rows = []
+        conn = get_connection()
+        try:
+            for idx, u in enumerate(leaderboard, 1):
+                stats = conn.execute(
+                    """
+                    SELECT
+                        COUNT(*),
+                        SUM(CASE WHEN result IN ('Thắng', 'Thắng (Quá giờ)') THEN 1 ELSE 0 END),
+                        SUM(CASE WHEN result LIKE 'Thua%' THEN 1 ELSE 0 END),
+                        SUM(CASE WHEN result = 'Hòa' THEN 1 ELSE 0 END)
+                    FROM match_history
+                    WHERE player = ?
+                    """,
+                    (u["username"],),
+                ).fetchone()
+                total = int(stats[0] or 0)
+                wins = int(stats[1] or 0)
+                losses = int(stats[2] or 0)
+                draws = int(stats[3] or 0)
+                rows.append(
+                    {
+                        "Hạng": idx,
+                        "Người chơi": u["username"],
+                        "Elo": u["elo"],
+                        "Trận": total,
+                        "Thắng": wins,
+                        "Thua": losses,
+                        "Hòa": draws,
+                        "Tỷ lệ thắng": f"{(wins / total * 100):.1f}%" if total else "0.0%",
+                    }
+                )
+        finally:
+            conn.close()
+
+        if rows:
+            st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+        else:
+            st.info("Chưa có người chơi.")
+
+        st.markdown("#### 📈 Elo hiện tại")
         if users:
-            df_users = pd.DataFrame(users)
-            if 'status' not in df_users.columns:
-                df_users['status'] = 'active'
-                
-            col_chart1, col_chart2 = st.columns(2)
-            
-            with col_chart1:
-                st.markdown("#### 📊 Tỷ lệ trạng thái tài khoản")
-                # Thay thế biểu đồ cột bị lỗi giao diện bằng bảng phân tích tỷ lệ và thanh tiến trình trực quan
-                active_pct = (total_active / total_users) * 100 if total_users > 0 else 0
-                locked_pct = (total_locked / total_users) * 100 if total_users > 0 else 0
-                
-                st.markdown(f"""
-                    <div style="background: #ffffff; padding: 20px; border-radius: 12px; border: 1px solid #eedecc; box-shadow: 0 4px 10px rgba(0,0,0,0.03);">
-                        <p style="margin-bottom: 8px; font-weight: 600; color: #5c3a21;">🟢 Hoạt động: <b>{total_active} tài khoản</b> ({active_pct:.1f}%)</p>
-                        <hr style="margin: 8px 0; border: none; border-top: 1px solid #eee;">
-                        <p style="margin-bottom: 8px; font-weight: 600; color: #c62828;">🔴 Bị khóa: <b>{total_locked} tài khoản</b> ({locked_pct:.1f}%)</p>
-                    </div>
-                """, unsafe_allow_html=True)
-                
-                # Vẽ biểu đồ ngang gọn gàng hơn cho trạng thái
-                status_df = pd.DataFrame({
-                    "Trạng thái": ["Đang hoạt động", "Đang bị khóa"],
-                    "Số lượng": [total_active, total_locked]
-                }).set_index("Trạng thái")
-                st.bar_chart(status_df, color="#2b7a78", horizontal=True)
-
-            with col_chart2:
-                st.markdown("#### 📈 Phân bố điểm Elo người chơi")
-                if 'username' in df_users.columns and 'elo' in df_users.columns:
-                    chart_data = df_users.set_index('username')[['elo']]
-                    st.bar_chart(chart_data, color="#8d5b4c")
+            elo_df = pd.DataFrame(
+                {"Elo": [u["elo"] for u in sorted(users, key=lambda x: x["elo"], reverse=True)[:top_n]]},
+                index=[u["username"] for u in sorted(users, key=lambda x: x["elo"], reverse=True)[:top_n]],
+            )
+            st.bar_chart(elo_df)

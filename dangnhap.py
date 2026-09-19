@@ -50,7 +50,7 @@ def render_login_page():
         </style>
     """, unsafe_allow_html=True)
 
-    st.markdown('<div class="main-banner">🪵 Cờ Caro Gỗ Trực Tuyến 🪵</div>', unsafe_allow_html=True)
+    st.markdown('<div class="main-banner">🪵 Cờ Caro  Trực Tuyến 🪵</div>', unsafe_allow_html=True)
     st.markdown("<p style='text-align: center; color: #7f634d; font-size: 16px; margin-bottom: 30px;'>Trải nghiệm đỉnh cao cùng trí tuệ nhân tạo và bạn bè</p>", unsafe_allow_html=True)
 
     _, col_login, _ = st.columns([1, 1.3, 1])
