@@ -142,3 +142,18 @@ CoCaRo/
 ├── requirements.txt
 ├── README.md
 └── .gitignore
+
+## 8. Hướng dẫn cài đặt và chạy chương trình
+![Hướng dẫn ](Huongdan.png)
+
+### 8.1. Yêu cầu môi trường
+
+- Python 3.x
+- Streamlit
+- SQLite
+- Git
+
+### 8.2. Cài đặt thư viện
+![alt text](image.png)
+Mở Terminal/PowerShell tại thư mục dự án:
+pip install -r requirements.txt
