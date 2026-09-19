@@ -154,6 +154,5 @@ CoCaRo/
 - Git
 
 ### 8.2. Cài đặt thư viện
-![alt text](image.png)
 Mở Terminal/PowerShell tại thư mục dự án:
 pip install -r requirements.txt
