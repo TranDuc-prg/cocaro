@@ -1,4 +1,3 @@
-# dangky.py (Đã nâng cấp giao diện siêu đẹp, đồng bộ phong cách)
 import streamlit as st
 from db import get_user, create_user
 
