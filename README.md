@@ -142,6 +142,7 @@ CoCaRo/
 ├── requirements.txt
 ├── README.md
 └── .gitignore
+```
 
 ## 8. Hướng dẫn cài đặt và chạy chương trình
 
@@ -168,8 +169,16 @@ pip install -r requirements.txt
 streamlit run app.py --server.port 8502
 ```
 
-Sau khi chạy thành công, mở:
+Sau khi chạy thành công, mở trình duyệt tại:
 
 ```text
 http://localhost:8502
 ```
+
+### 8.4. Quy trình chạy
+
+1. Chuẩn bị môi trường Python.
+2. Cài đặt các thư viện cần thiết.
+3. Chạy chương trình bằng Streamlit.
+4. Mở trình duyệt tại `http://localhost:8502`.
+5. Đăng ký hoặc đăng nhập để sử dụng hệ thống.
